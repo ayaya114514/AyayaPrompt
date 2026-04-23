@@ -38,7 +38,10 @@ jobs:
           DATABASE_URL: "file:./seed.db"
         run: |
           npx prisma migrate deploy
-          mv seed.db prisma/seed.db
+          # Prisma resolves SQLite paths relative to schema.prisma,
+          # so the file lands at prisma/seed.db. Make a matching dev.db
+          # so Next.js build-time Prisma queries don't fail.
+          cp prisma/seed.db prisma/dev.db
 
       - name: Build Next.js
         run: npm run build
