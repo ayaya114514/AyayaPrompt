@@ -1,0 +1,61 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Prompt {
+  id        String          @id @default(cuid())
+  title     String
+  content   String
+  tags      String          @default("[]")
+  favorite  Boolean         @default(false)
+  folder    String?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  versions  PromptVersion[]
+  runs      PlaygroundRun[]
+}
+
+model PromptVersion {
+  id        String   @id @default(cuid())
+  promptId  String
+  prompt    Prompt   @relation(fields: [promptId], references: [id], onDelete: Cascade)
+  title     String
+  content   String
+  tags      String
+  createdAt DateTime @default(now())
+
+  @@index([promptId])
+}
+
+model PlaygroundRun {
+  id             String   @id @default(cuid())
+  promptId       String?
+  prompt         Prompt?  @relation(fields: [promptId], references: [id], onDelete: SetNull)
+  promptTitle    String
+  renderedPrompt String
+  variables      String   @default("{}")
+  provider       String
+  model          String
+  output         String   @default("")
+  inputTokens    Int?
+  outputTokens   Int?
+  durationMs     Int
+  error          String?
+  createdAt      DateTime @default(now())
+
+  @@index([promptId])
+  @@index([createdAt])
+}
+
+model AppSettings {
+  id       String @id @default("singleton")
+  provider String @default("anthropic")
+  baseURL  String @default("")
+  apiKey   String @default("")
+  model    String @default("claude-sonnet-4-5")
+}
