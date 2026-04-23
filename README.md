@@ -152,15 +152,7 @@ Open **Settings** in the sidebar, pick a preset, paste your key + model, save. S
 - **Desktop**: `~/Library/Application Support/PromptVault/promptvault.db` (macOS) or `%APPDATA%\PromptVault\promptvault.db` (Windows)
 - **Web dev**: `prisma/dev.db`
 
----
 
-## 📸 Screenshots
-
-> _Drop PNGs into `docs/screenshots/` and they'll show up here. Suggested pages: `/`, `/new`, `/p/[id]` with the versions panel, `/playground`, `/settings`._
-
-| Vault | Playground | Versions |
-| --- | --- | --- |
-| _coming soon_ | _coming soon_ | _coming soon_ |
 
 ---
 
