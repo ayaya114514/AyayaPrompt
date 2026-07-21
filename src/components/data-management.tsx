@@ -24,7 +24,7 @@ export function DataManagement() {
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = "promptvault-" + new Date().toISOString().split("T")[0] + ".json";
+      anchor.download = "ayaya-prompt-" + new Date().toISOString().split("T")[0] + ".json";
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();

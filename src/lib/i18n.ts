@@ -15,7 +15,7 @@ export const dict = {
   "sidebar.toggleLang": { zh: "English", en: "中文" },
 
   // Home
-  "home.title": { zh: "欢迎使用 PromptVault", en: "Welcome to PromptVault" },
+  "home.title": { zh: "欢迎使用 AyayaPrompt", en: "Welcome to AyayaPrompt" },
   "home.empty": {
     zh: "仓库为空，创建第一条 Prompt 开始吧。",
     en: "Your vault is empty. Create your first prompt to get started.",
@@ -125,8 +125,8 @@ export const dict = {
   // Settings
   "settings.title": { zh: "API 设置", en: "API settings" },
   "settings.subtitle": {
-    zh: "配置浏览器直连模型所需的 API 凭证。数据不会经过 PromptVault 服务器。",
-    en: "Configure credentials for direct browser-to-provider requests. PromptVault has no server in the middle.",
+    zh: "配置浏览器直连模型所需的 API 凭证。数据不会经过 AyayaPrompt 服务器。",
+    en: "Configure credentials for direct browser-to-provider requests. AyayaPrompt has no server in the middle.",
   },
   "settings.provider": { zh: "Provider", en: "Provider" },
   "settings.providerAnthropic": { zh: "Anthropic 原生", en: "Anthropic native" },

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, Route, Routes, useLocation } from "react-router-dom";
-import { AlertCircle, LoaderCircle, Menu, Vault, X } from "lucide-react";
+import { AlertCircle, LoaderCircle, Menu, X } from "lucide-react";
+import { BrandMark } from "@/components/brand-mark";
 import { Sidebar } from "@/components/sidebar";
 import { Button } from "@/components/ui/button";
 import { HomePage } from "@/pages/home-page";
@@ -51,7 +52,7 @@ function AppShell() {
             <Menu className="h-5 w-5" />
           </Button>
           <Link to="/" className="flex items-center gap-2 font-semibold">
-            <Vault className="h-4 w-4" /> PromptVault
+            <BrandMark className="h-5 w-5" /> AyayaPrompt
           </Link>
         </header>
         <main className="min-w-0 flex-1 overflow-y-auto">

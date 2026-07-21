@@ -1,4 +1,4 @@
-# PromptVault
+# AyayaPrompt
 
 一个完全运行在浏览器里的本地 Prompt 仓库，支持版本历史、模板变量、JSON 备份和 multi-provider Playground。
 
@@ -60,7 +60,7 @@ npm test              # 完整验证
 
 ## 从旧 Electron 版迁移
 
-旧版 SQLite database 不能由网页直接读取。请先用旧版 PromptVault 导出 JSON，然后在网页版设置页导入。旧版导出的 stringified tags 和 nested version records 会自动转换到新的 IndexedDB schema。
+旧版 SQLite database 不能由网页直接读取。请先用旧版 PromptVault（AyayaPrompt 的前身）导出 JSON，然后在网页版设置页导入。旧版导出的 stringified tags 和 nested version records 会自动转换到新的 IndexedDB schema。
 
 ## Architecture
 

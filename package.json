@@ -1,8 +1,8 @@
 {
-  "name": "promptvault",
+  "name": "ayaya-prompt",
   "version": "0.1.0",
   "private": true,
-  "description": "Browser-native prompt vault for GitHub Pages.",
+  "description": "AyayaPrompt, a browser-native prompt library for GitHub Pages.",
   "author": "ayaya114514",
   "license": "MIT",
   "engines": {

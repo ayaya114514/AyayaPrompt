@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
-import { Plus, Vault } from "lucide-react";
+import { Plus } from "lucide-react";
+import { BrandMark } from "@/components/brand-mark";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/lib/i18n-client";
 import { useVault } from "@/lib/vault-context";
@@ -13,7 +14,7 @@ export function HomePage() {
     <div className="flex min-h-full items-center justify-center p-8">
       <div className="max-w-md text-center">
         <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted">
-          <Vault className="h-7 w-7 text-muted-foreground" />
+          <BrandMark className="h-9 w-9" />
         </div>
         <h1 className="text-2xl font-semibold">{t("home.title")}</h1>
         <p className="mt-2 text-sm text-muted-foreground">

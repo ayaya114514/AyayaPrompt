@@ -1,5 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
-import { Plus, Vault, Play, Settings } from "lucide-react";
+import { Plus, Play, Settings } from "lucide-react";
+import { BrandMark } from "@/components/brand-mark";
 import { Button } from "@/components/ui/button";
 import { LanguageToggle } from "@/components/language-toggle";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -17,8 +18,8 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <div className="flex h-full flex-col bg-muted/30">
       <div className="flex items-center gap-2 border-b px-4 py-4">
-        <Vault className="h-5 w-5" />
-        <Link to="/" onClick={onNavigate} className="font-semibold">PromptVault</Link>
+        <BrandMark className="h-6 w-6" />
+        <Link to="/" onClick={onNavigate} className="font-semibold">AyayaPrompt</Link>
       </div>
 
       <div className="space-y-1 px-3 pt-3">

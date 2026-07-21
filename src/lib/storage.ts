@@ -86,7 +86,7 @@ function openDatabase(): Promise<IDBDatabase> {
     };
     request.onblocked = () => {
       databasePromise = null;
-      reject(new Error("Browser storage upgrade is blocked by another PromptVault tab"));
+      reject(new Error("Browser storage upgrade is blocked by another AyayaPrompt tab"));
     };
   });
 
