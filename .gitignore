@@ -9,12 +9,20 @@
 # testing
 /coverage
 
-# next.js
-/.next/
-/out/
-
 # production
-/build
+/dist
+
+# legacy build artifacts kept out of the static rewrite
+/.next/
+next-env.d.ts
+
+# legacy SQLite files may contain prompts or API credentials
+prisma/*.db
+prisma/*.db-journal
+/dev.db
+/dev.db-journal
+*.sqlite
+*.sqlite-journal
 
 # misc
 .DS_Store
@@ -29,27 +37,9 @@ yarn-error.log*
 .env
 .env*.local
 
-# sqlite database (contains prompts, runs, and plaintext API key)
-prisma/*.db
-prisma/*.db-journal
-/dev.db
-/dev.db-journal
-*.sqlite
-*.sqlite-journal
-
-# vercel
-.vercel
-
 # typescript
 *.tsbuildinfo
-next-env.d.ts
 
-/src/generated/prisma
-
-# electron build output
-/dist/
-/release/
-/electron/dist/
-*.dmg
-*.exe
-*.blockmap
+# local test artifacts
+/playwright-report/
+/test-results/

@@ -125,8 +125,8 @@ export const dict = {
   // Settings
   "settings.title": { zh: "API 设置", en: "API settings" },
   "settings.subtitle": {
-    zh: "配置调用模型的 API 凭证。所有字段存在本地 SQLite。",
-    en: "Configure credentials for calling the model. All fields are stored in local SQLite.",
+    zh: "配置浏览器直连模型所需的 API 凭证。数据不会经过 PromptVault 服务器。",
+    en: "Configure credentials for direct browser-to-provider requests. PromptVault has no server in the middle.",
   },
   "settings.provider": { zh: "Provider", en: "Provider" },
   "settings.providerAnthropic": { zh: "Anthropic 原生", en: "Anthropic native" },
@@ -141,8 +141,8 @@ export const dict = {
   },
   "settings.apiKey": { zh: "API Key", en: "API Key" },
   "settings.apiKeyHint": {
-    zh: "存在本地数据库，不会发往第三方服务器。",
-    en: "Stored locally; never sent anywhere except the chosen provider.",
+    zh: "默认仅在当前 tab session 保存，只会发送给所选 Provider。",
+    en: "Kept for this tab session by default and sent only to the selected provider.",
   },
   "settings.model": { zh: "模型", en: "Model" },
   "settings.save": { zh: "保存设置", en: "Save settings" },
@@ -247,6 +247,31 @@ export const dict = {
   "shortcuts.search": { zh: "聚焦搜索框", en: "Focus search" },
   "shortcuts.help": { zh: "显示此帮助", en: "Show this help" },
   "shortcuts.close": { zh: "关闭弹框", en: "Close dialog" },
+
+  // Browser-native shell
+  "app.loading": { zh: "正在打开本地仓库…", en: "Opening your local vault…" },
+  "app.storageError": { zh: "无法打开浏览器存储", en: "Browser storage is unavailable" },
+  "app.retry": { zh: "重试", en: "Retry" },
+  "app.menu": { zh: "打开导航", en: "Open navigation" },
+  "app.closeMenu": { zh: "关闭导航", en: "Close navigation" },
+  "app.localOnly": { zh: "数据仅保存在此浏览器", en: "Data stays in this browser" },
+  "form.error": { zh: "操作失败：{msg}", en: "Operation failed: {msg}" },
+  "settings.rememberApiKey": { zh: "在此浏览器中记住 API Key", en: "Remember API key in this browser" },
+  "settings.rememberApiKeyHint": {
+    zh: "启用后会写入 IndexedDB，可被此页面运行的 JavaScript 读取。仅建议在自己的设备上使用。",
+    en: "When enabled, the key is stored in IndexedDB and can be read by JavaScript running on this origin. Use only on your own device.",
+  },
+  "settings.browserWarning": {
+    zh: "这是纯静态 BYOK app。Provider 必须允许 browser CORS；请勿在公共设备保存 API Key。",
+    en: "This is a static BYOK app. The provider must allow browser CORS, and API keys should never be saved on shared devices.",
+  },
+  "settings.storageTitle": { zh: "本地存储", en: "Local storage" },
+  "settings.storageDesc": {
+    zh: "Prompt、版本和运行记录保存在此网站 origin 的 IndexedDB 中。换浏览器或清除站点数据前请先导出备份。",
+    en: "Prompts, versions, and runs live in IndexedDB for this site origin. Export a backup before switching browsers or clearing site data.",
+  },
+  "notFound.title": { zh: "没有找到这个页面", en: "Page not found" },
+  "notFound.home": { zh: "返回首页", en: "Back home" },
 } as const satisfies Record<string, Entry>;
 
 export type Key = keyof typeof dict;

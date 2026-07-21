@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useRef, useEffect } from "react";
-import Link from "next/link";
+import { Link } from "react-router-dom";
 import { ChevronDown, ChevronRight, Folder, Search, Star } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useT } from "@/lib/i18n-client";
@@ -18,9 +18,11 @@ export type SidebarItem = {
 export function SidebarList({
   items,
   activeId,
+  onNavigate,
 }: {
   items: SidebarItem[];
   activeId?: string;
+  onNavigate?: () => void;
 }) {
   const t = useT();
   const [query, setQuery] = useState("");
@@ -131,7 +133,8 @@ export function SidebarList({
                       {list.map((p) => (
                         <li key={p.id}>
                           <Link
-                            href={`/p/${p.id}`}
+                            to={"/p/" + p.id}
+                            onClick={onNavigate}
                             className={cn(
                               "block rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent",
                               activeId === p.id && "bg-accent",

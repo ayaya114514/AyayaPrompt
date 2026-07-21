@@ -1,135 +1,116 @@
-"use client";
-
-import { useState, useTransition } from "react";
-import { Check, Save } from "lucide-react";
+import { useEffect, useState } from "react";
+import { AlertTriangle, Check, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { PROVIDER_PRESETS, Provider } from "@/lib/providers";
+import { PROVIDER_PRESETS } from "@/lib/providers";
 import { useT } from "@/lib/i18n-client";
-import { saveSettings } from "@/app/actions";
+import { useVault } from "@/lib/vault-context";
+import type { AppSettings, Provider } from "@/lib/types";
 
-export function SettingsForm({
-  initial,
-}: {
-  initial: {
-    provider: Provider;
-    baseURL: string;
-    apiKey: string;
-    model: string;
-  };
-}) {
+export function SettingsForm() {
   const t = useT();
-  const [provider, setProvider] = useState<Provider>(initial.provider);
-  const [baseURL, setBaseURL] = useState(initial.baseURL);
-  const [apiKey, setApiKey] = useState(initial.apiKey);
-  const [model, setModel] = useState(initial.model);
-  const [isPending, startTransition] = useTransition();
+  const { settings, saveSettings } = useVault();
+  const [form, setForm] = useState<AppSettings>(settings);
+  const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  function applyPreset(p: (typeof PROVIDER_PRESETS)[number]) {
-    setProvider(p.provider);
-    setBaseURL(p.baseURL);
-    setModel(p.modelHint);
+  useEffect(() => setForm(settings), [settings]);
+
+  function patch(next: Partial<AppSettings>) {
+    setForm((current) => ({ ...current, ...next }));
   }
 
-  function onSubmit(formData: FormData) {
-    startTransition(async () => {
-      await saveSettings(formData);
+  async function onSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await saveSettings({ ...form, baseURL: form.baseURL.trim(), apiKey: form.apiKey.trim(), model: form.model.trim() });
       setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    });
+      window.setTimeout(() => setSaved(false), 2000);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusy(false);
+    }
   }
+
+  const activeNote = PROVIDER_PRESETS.find((preset) => preset.provider === form.provider && preset.baseURL === form.baseURL)?.note;
 
   return (
-    <form action={onSubmit} className="space-y-6">
+    <form onSubmit={onSubmit} className="space-y-6">
+      <div className="flex items-start gap-2 rounded-md border border-yellow-500/40 bg-yellow-500/5 p-3 text-xs leading-relaxed text-yellow-800 dark:text-yellow-300">
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+        {t("settings.browserWarning")}
+      </div>
+
+      {error && <p className="text-xs text-destructive">{t("form.error", { msg: error })}</p>}
+
       <div className="space-y-2">
         <Label>{t("settings.presets")}</Label>
         <div className="flex flex-wrap gap-2">
-          {PROVIDER_PRESETS.map((p) => (
+          {PROVIDER_PRESETS.map((preset) => (
             <button
-              key={p.label}
+              key={preset.label}
               type="button"
-              onClick={() => applyPreset(p)}
+              onClick={() => patch({ provider: preset.provider, baseURL: preset.baseURL, model: preset.modelHint })}
               className="rounded-md border bg-background px-3 py-1.5 text-xs transition-colors hover:bg-accent"
             >
-              {p.label}
+              {preset.label}
             </button>
           ))}
         </div>
-        <p className="text-xs text-muted-foreground">
-          {PROVIDER_PRESETS.find(
-            (p) => p.provider === provider && p.baseURL === baseURL,
-          )?.note ?? " "}
-        </p>
+        <p className="min-h-4 text-xs text-muted-foreground">{activeNote ?? " "}</p>
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="provider">{t("settings.provider")}</Label>
         <select
           id="provider"
-          name="provider"
-          value={provider}
-          onChange={(e) => setProvider(e.target.value as Provider)}
+          value={form.provider}
+          onChange={(event) => patch({ provider: event.target.value as Provider })}
           className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <option value="anthropic">{t("settings.providerAnthropic")}</option>
-          <option value="openai-compatible">
-            {t("settings.providerOpenAI")}
-          </option>
+          <option value="openai-compatible">{t("settings.providerOpenAI")}</option>
         </select>
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="baseURL">{t("settings.baseURL")}</Label>
-        <Input
-          id="baseURL"
-          name="baseURL"
-          value={baseURL}
-          onChange={(e) => setBaseURL(e.target.value)}
-          placeholder="https://..."
-          className="font-mono text-xs"
-        />
+        <Input id="baseURL" value={form.baseURL} onChange={(event) => patch({ baseURL: event.target.value })} placeholder="https://..." className="font-mono text-xs" />
         <p className="text-xs text-muted-foreground">{t("settings.baseURLHint")}</p>
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="apiKey">{t("settings.apiKey")}</Label>
-        <Input
-          id="apiKey"
-          name="apiKey"
-          type="password"
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          placeholder="sk-..."
-          className="font-mono text-xs"
-        />
+        <Input id="apiKey" type="password" value={form.apiKey} onChange={(event) => patch({ apiKey: event.target.value })} placeholder="sk-..." className="font-mono text-xs" autoComplete="off" />
         <p className="text-xs text-muted-foreground">{t("settings.apiKeyHint")}</p>
       </div>
 
+      <label className="flex cursor-pointer items-start gap-3 rounded-md border p-3">
+        <input
+          type="checkbox"
+          checked={form.rememberApiKey}
+          onChange={(event) => patch({ rememberApiKey: event.target.checked })}
+          className="mt-1"
+        />
+        <span>
+          <span className="block text-sm font-medium">{t("settings.rememberApiKey")}</span>
+          <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">{t("settings.rememberApiKeyHint")}</span>
+        </span>
+      </label>
+
       <div className="space-y-2">
         <Label htmlFor="model">{t("settings.model")}</Label>
-        <Input
-          id="model"
-          name="model"
-          value={model}
-          onChange={(e) => setModel(e.target.value)}
-          placeholder="claude-sonnet-4-5"
-          className="font-mono text-xs"
-        />
+        <Input id="model" value={form.model} onChange={(event) => patch({ model: event.target.value })} placeholder="claude-sonnet-4-5" className="font-mono text-xs" />
       </div>
 
       <div className="flex justify-end">
-        <Button type="submit" disabled={isPending}>
-          {saved ? (
-            <>
-              <Check className="h-4 w-4" /> {t("settings.saved")}
-            </>
-          ) : (
-            <>
-              <Save className="h-4 w-4" /> {t("settings.save")}
-            </>
-          )}
+        <Button type="submit" disabled={busy}>
+          {saved ? <><Check className="h-4 w-4" /> {t("settings.saved")}</> : <><Save className="h-4 w-4" /> {t("settings.save")}</>}
         </Button>
       </div>
     </form>

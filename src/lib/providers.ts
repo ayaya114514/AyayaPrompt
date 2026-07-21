@@ -1,4 +1,4 @@
-export type Provider = "anthropic" | "openai-compatible";
+import type { Provider } from "@/lib/types";
 
 export type CallResult = {
   text: string;
@@ -15,90 +15,105 @@ export type CallOptions = {
   maxTokens?: number;
 };
 
-export async function callModel(opts: CallOptions): Promise<CallResult> {
-  if (!opts.apiKey) throw new Error("API key is not set. Configure it in Settings.");
-  if (!opts.model) throw new Error("Model is not set.");
-
-  return opts.provider === "anthropic"
-    ? callAnthropic(opts)
-    : callOpenAICompatible(opts);
+function endpoint(baseURL: string, path: string): string {
+  let url: URL;
+  try {
+    url = new URL(baseURL.replace(/\/$/, "") + path);
+  } catch {
+    throw new Error("The provider Base URL is invalid");
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") {
+    throw new Error("The provider Base URL must use HTTP or HTTPS");
+  }
+  return url.toString();
 }
 
-async function callAnthropic(opts: CallOptions): Promise<CallResult> {
-  const base =
-    (opts.baseURL && opts.baseURL.trim()) || "https://api.anthropic.com";
-  const url = `${base.replace(/\/$/, "")}/v1/messages`;
+async function providerFetch(url: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 120_000);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (cause) {
+    if (cause instanceof DOMException && cause.name === "AbortError") {
+      throw new Error("The provider request timed out after 120 seconds");
+    }
+    if (cause instanceof TypeError) {
+      throw new Error("The browser could not reach this provider. Check the Base URL, network, and provider CORS policy.");
+    }
+    throw cause;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
 
-  const res = await fetch(url, {
+export async function callModel(options: CallOptions): Promise<CallResult> {
+  if (!options.apiKey) throw new Error("API key is not set. Configure it in Settings.");
+  if (!options.model) throw new Error("Model is not set.");
+
+  return options.provider === "anthropic"
+    ? callAnthropic(options)
+    : callOpenAICompatible(options);
+}
+
+async function callAnthropic(options: CallOptions): Promise<CallResult> {
+  const baseURL = options.baseURL.trim() || "https://api.anthropic.com";
+  const response = await providerFetch(endpoint(baseURL, "/v1/messages"), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": opts.apiKey,
+      "x-api-key": options.apiKey,
       "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true",
     },
     body: JSON.stringify({
-      model: opts.model,
-      max_tokens: opts.maxTokens ?? 4096,
-      messages: [{ role: "user", content: opts.prompt }],
+      model: options.model,
+      max_tokens: options.maxTokens ?? 4096,
+      messages: [{ role: "user", content: options.prompt }],
     }),
   });
 
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Anthropic ${res.status}: ${body.slice(0, 500)}`);
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error("Anthropic " + response.status + ": " + body.slice(0, 500));
   }
 
-  const data: {
+  const data = (await response.json()) as {
     content?: Array<{ type: string; text?: string }>;
     usage?: { input_tokens?: number; output_tokens?: number };
-  } = await res.json();
-
-  const text =
-    data.content
-      ?.filter((b) => b.type === "text")
-      .map((b) => b.text ?? "")
-      .join("") ?? "";
-
+  };
   return {
-    text,
+    text: data.content?.filter((block) => block.type === "text").map((block) => block.text ?? "").join("") ?? "",
     inputTokens: data.usage?.input_tokens,
     outputTokens: data.usage?.output_tokens,
   };
 }
 
-async function callOpenAICompatible(opts: CallOptions): Promise<CallResult> {
-  if (!opts.baseURL) {
-    throw new Error("Base URL is required for OpenAI-compatible providers.");
-  }
-  const url = `${opts.baseURL.replace(/\/$/, "")}/chat/completions`;
-
-  const res = await fetch(url, {
+async function callOpenAICompatible(options: CallOptions): Promise<CallResult> {
+  if (!options.baseURL.trim()) throw new Error("Base URL is required for OpenAI-compatible providers.");
+  const response = await providerFetch(endpoint(options.baseURL, "/chat/completions"), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${opts.apiKey}`,
+      Authorization: "Bearer " + options.apiKey,
     },
     body: JSON.stringify({
-      model: opts.model,
-      messages: [{ role: "user", content: opts.prompt }],
-      max_tokens: opts.maxTokens ?? 4096,
+      model: options.model,
+      messages: [{ role: "user", content: options.prompt }],
+      max_tokens: options.maxTokens ?? 4096,
     }),
   });
 
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Provider ${res.status}: ${body.slice(0, 500)}`);
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error("Provider " + response.status + ": " + body.slice(0, 500));
   }
 
-  const data: {
+  const data = (await response.json()) as {
     choices?: Array<{ message?: { content?: string } }>;
     usage?: { prompt_tokens?: number; completion_tokens?: number };
-  } = await res.json();
-
-  const text = data.choices?.[0]?.message?.content ?? "";
-
+  };
   return {
-    text,
+    text: data.choices?.[0]?.message?.content ?? "",
     inputTokens: data.usage?.prompt_tokens,
     outputTokens: data.usage?.completion_tokens,
   };
@@ -116,41 +131,43 @@ export const PROVIDER_PRESETS: Array<{
     provider: "anthropic",
     baseURL: "https://api.anthropic.com",
     modelHint: "claude-sonnet-4-5",
-    note: "Official Anthropic API (paid, new accounts get $5 credit).",
+    note: "Direct browser access is enabled explicitly. Use a personal key only on a trusted device.",
   },
   {
     label: "OpenRouter",
     provider: "openai-compatible",
     baseURL: "https://openrouter.ai/api/v1",
     modelHint: "anthropic/claude-sonnet-4.5",
-    note: "Aggregator: one key for many models. Some models marked :free.",
+    note: "Browser support is provider-controlled; a CORS error will be shown if access is blocked.",
   },
   {
     label: "Groq",
     provider: "openai-compatible",
     baseURL: "https://api.groq.com/openai/v1",
     modelHint: "llama-3.3-70b-versatile",
-    note: "Free tier, very fast. No Claude models.",
+    note: "Fast OpenAI-compatible endpoint with a free tier.",
   },
   {
     label: "DeepSeek",
     provider: "openai-compatible",
     baseURL: "https://api.deepseek.com/v1",
     modelHint: "deepseek-chat",
-    note: "Very cheap, accessible in mainland China.",
+    note: "Direct browser access depends on the current provider CORS policy.",
+  },
+  {
+    label: "Google Gemini",
+    provider: "openai-compatible",
+    baseURL: "https://generativelanguage.googleapis.com/v1beta/openai",
+    modelHint: "gemini-2.5-flash",
+    note: "Uses the Google OpenAI-compatible endpoint.",
   },
   {
     label: "Ollama (local)",
     provider: "openai-compatible",
     baseURL: "http://localhost:11434/v1",
     modelHint: "llama3.1",
-    note: "Run models locally. Leave apiKey as any non-empty string (e.g. 'ollama').",
-  },
-  {
-    label: "Google Gemini",
-    provider: "openai-compatible",
-    baseURL: "https://generativelanguage.googleapis.com/v1beta/openai",
-    modelHint: "gemini-2.0-flash",
-    note: "Generous free tier. May need a proxy in mainland China.",
+    note: "The browser may block HTTPS-to-localhost or CORS requests unless Ollama is configured to allow this site.",
   },
 ];
+
+export type { Provider } from "@/lib/types";

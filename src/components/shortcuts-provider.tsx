@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useNavigate } from "react-router-dom";
 import { Keyboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,7 +27,7 @@ function Kbd({ children }: { children: React.ReactNode }) {
 export function ShortcutsButton() {
   const t = useT();
   const [open, setOpen] = useState(false);
-  const router = useRouter();
+  const navigate = useNavigate();
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -40,7 +40,7 @@ export function ShortcutsButton() {
 
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "n" && !e.shiftKey) {
         e.preventDefault();
-        router.push("/new");
+        navigate("/new");
       } else if (e.key === "?" && !isEditable) {
         e.preventDefault();
         setOpen(true);
@@ -48,7 +48,7 @@ export function ShortcutsButton() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [router]);
+  }, [navigate]);
 
   const rows: Array<{ keys: React.ReactNode; label: string }> = [
     {

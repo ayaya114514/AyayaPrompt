@@ -1,16 +1,34 @@
-"use client";
-
+import { useEffect, useState } from "react";
 import { Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/lib/i18n-client";
 
-export function ThemeToggle({ theme }: { theme: "light" | "dark" }) {
-  const t = useT();
+const THEME_KEY = "promptvault-theme-v1";
 
-  function onToggle() {
+function readTheme(): "light" | "dark" {
+  try {
+    return localStorage.getItem(THEME_KEY) === "dark" ? "dark" : "light";
+  } catch {
+    return "light";
+  }
+}
+
+export function ThemeToggle() {
+  const t = useT();
+  const [theme, setTheme] = useState<"light" | "dark">(readTheme);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", theme === "dark");
+  }, [theme]);
+
+  function toggle() {
     const next = theme === "dark" ? "light" : "dark";
-    document.cookie = `theme=${next}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`;
-    window.location.reload();
+    setTheme(next);
+    try {
+      localStorage.setItem(THEME_KEY, next);
+    } catch {
+      // Keep the current session theme when persistence is restricted.
+    }
   }
 
   return (
@@ -18,16 +36,11 @@ export function ThemeToggle({ theme }: { theme: "light" | "dark" }) {
       type="button"
       variant="ghost"
       size="sm"
-      onClick={onToggle}
+      onClick={toggle}
       className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
-      title={t(theme === "dark" ? "theme.light" : "theme.dark")}
     >
-      {theme === "dark" ? (
-        <Sun className="h-4 w-4" />
-      ) : (
-        <Moon className="h-4 w-4" />
-      )}
-      {t(theme === "dark" ? "theme.light" : "theme.dark")}
+      {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+      {theme === "dark" ? t("theme.light") : t("theme.dark")}
     </Button>
   );
 }

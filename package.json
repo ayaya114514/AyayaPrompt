@@ -2,24 +2,23 @@
   "name": "promptvault",
   "version": "0.1.0",
   "private": true,
-  "description": "Local-first prompt vault with versioning, template variables, and a multi-provider playground.",
+  "description": "Browser-native prompt vault for GitHub Pages.",
   "author": "ayaya114514",
   "license": "MIT",
-  "main": "electron/main.js",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint",
-    "postinstall": "prisma generate",
-    "seed:db": "prisma migrate deploy",
-    "electron:dev": "electron .",
-    "electron:build": "next build && electron-builder",
-    "dist:mac": "next build && electron-builder --mac --publish never",
-    "dist:win": "next build && electron-builder --win --publish never"
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "typecheck": "tsc --noEmit",
+    "test:unit": "vitest run",
+    "test:browser": "playwright test",
+    "check": "npm run typecheck && npm run test:unit && npm run build",
+    "test": "npm run check && npm run test:browser"
   },
   "dependencies": {
-    "@prisma/client": "^6.19.3",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-label": "^2.1.8",
     "@radix-ui/react-slot": "^1.2.4",
@@ -28,70 +27,22 @@
     "clsx": "^2.1.1",
     "diff": "^9.0.0",
     "lucide-react": "^1.8.0",
-    "next": "14.2.35",
-    "prisma": "^6.19.3",
     "react": "^18",
     "react-dom": "^18",
+    "react-router-dom": "^7.9.5",
     "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.56.1",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
-    "electron": "^32.2.0",
-    "electron-builder": "^25.1.8",
-    "eslint": "^8",
-    "eslint-config-next": "14.2.35",
+    "@vitejs/plugin-react": "^5.0.4",
+    "fake-indexeddb": "^6.2.4",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
-    "typescript": "^5"
-  },
-  "build": {
-    "appId": "com.ayaya.promptvault",
-    "productName": "PromptVault",
-    "asar": false,
-    "directories": {
-      "output": "release"
-    },
-    "files": [
-      "electron/**/*",
-      ".next/**/*",
-      "public/**/*",
-      "prisma/schema.prisma",
-      "prisma/migrations/**/*",
-      "next.config.mjs",
-      "package.json",
-      "node_modules/**/*"
-    ],
-    "extraResources": [
-      {
-        "from": "prisma/seed.db",
-        "to": "seed.db"
-      }
-    ],
-    "mac": {
-      "target": [
-        {
-          "target": "dmg",
-          "arch": ["x64", "arm64"]
-        }
-      ],
-      "category": "public.app-category.developer-tools",
-      "artifactName": "PromptVault-${version}-${arch}.${ext}"
-    },
-    "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": ["x64"]
-        }
-      ],
-      "artifactName": "PromptVault-${version}-Setup.${ext}"
-    },
-    "nsis": {
-      "oneClick": false,
-      "perMachine": false,
-      "allowToChangeInstallationDirectory": true
-    }
+    "typescript": "^5",
+    "vite": "^7.1.12",
+    "vitest": "^3.2.4"
   }
 }
