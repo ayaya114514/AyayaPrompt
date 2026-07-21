@@ -2,7 +2,7 @@
 
 一个完全运行在浏览器里的本地 Prompt 仓库，支持版本历史、模板变量、JSON 备份和 multi-provider Playground。
 
-在线版本：<https://ayaya114514.github.io/promptvault/>
+在线版本：<https://ayaya114514.github.io/AyayaPrompt/>
 
 ## 特性
 
