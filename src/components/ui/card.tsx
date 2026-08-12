@@ -25,12 +25,15 @@ export const CardHeader = ({
 
 export const CardTitle = ({
   className,
+  children,
   ...props
 }: React.HTMLAttributes<HTMLHeadingElement>) => (
   <h3
     className={cn("text-lg font-semibold leading-none", className)}
     {...props}
-  />
+  >
+    {children}
+  </h3>
 );
 
 export const CardContent = ({

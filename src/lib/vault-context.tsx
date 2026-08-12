@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import * as storage from "@/lib/storage";
@@ -21,13 +22,14 @@ type VaultContextValue = VaultSnapshot & {
   error: string | null;
   refresh: () => Promise<void>;
   createPrompt: (input: PromptInput) => Promise<PromptRecord>;
-  updatePrompt: (id: string, input: PromptInput) => Promise<void>;
+  updatePrompt: (id: string, input: PromptInput, expectedUpdatedAt: string) => Promise<void>;
   deletePrompt: (id: string) => Promise<void>;
   toggleFavorite: (id: string) => Promise<void>;
   restoreVersion: (versionId: string) => Promise<void>;
   saveSettings: (settings: AppSettings) => Promise<void>;
   createRun: (run: Omit<PlaygroundRunRecord, "id" | "createdAt">) => Promise<PlaygroundRunRecord>;
   deleteRun: (id: string) => Promise<void>;
+  clearRuns: () => Promise<void>;
   importData: (jsonText: string) => Promise<{ added: number; skipped: number }>;
   exportData: () => Promise<string>;
   versionsFor: (promptId: string) => PromptVersionRecord[];
@@ -46,6 +48,12 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const [snapshot, setSnapshot] = useState<VaultSnapshot>(EMPTY_SNAPSHOT);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const channelRef = useRef<BroadcastChannel | null>(null);
+  const sourceIdRef = useRef(
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : Math.random().toString(36).slice(2),
+  );
 
   const refresh = useCallback(async () => {
     try {
@@ -63,12 +71,45 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     refresh().catch(() => undefined);
   }, [refresh]);
 
+  useEffect(() => {
+    if (typeof BroadcastChannel === "undefined") return;
+
+    let channel: BroadcastChannel;
+    try {
+      channel = new BroadcastChannel("ayaya-prompt-vault");
+    } catch {
+      return;
+    }
+    channelRef.current = channel;
+    channel.onmessage = (event: MessageEvent<unknown>) => {
+      const message = event.data;
+      if (!message || typeof message !== "object") return;
+      const candidate = message as { type?: unknown; source?: unknown };
+      if (candidate.type !== "changed" || candidate.source === sourceIdRef.current) return;
+      refresh().catch(() => undefined);
+    };
+    return () => {
+      if (channelRef.current === channel) channelRef.current = null;
+      channel.close();
+    };
+  }, [refresh]);
+
+  const broadcastChange = useCallback(() => {
+    try {
+      channelRef.current?.postMessage({ type: "changed", source: sourceIdRef.current });
+    } catch {
+      // Cross-tab refresh is best effort where BroadcastChannel is restricted.
+    }
+  }, []);
+
   const mutate = useCallback(
-    async (operation: () => Promise<void>) => {
-      await operation();
+    async <T,>(operation: () => Promise<T>): Promise<T> => {
+      const result = await operation();
+      broadcastChange();
       await refresh();
+      return result;
     },
-    [refresh],
+    [broadcastChange, refresh],
   );
 
   const value = useMemo<VaultContextValue>(
@@ -77,27 +118,18 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       ready,
       error,
       refresh,
-      async createPrompt(input) {
-        const prompt = await storage.createPrompt(input);
-        await refresh();
-        return prompt;
-      },
-      updatePrompt: (id, input) => mutate(() => storage.updatePrompt(id, input)),
+      createPrompt: (input) => mutate(() => storage.createPrompt(input)),
+      updatePrompt: (id, input, expectedUpdatedAt) => mutate(
+        () => storage.updatePrompt(id, input, expectedUpdatedAt),
+      ),
       deletePrompt: (id) => mutate(() => storage.deletePrompt(id)),
       toggleFavorite: (id) => mutate(() => storage.togglePromptFavorite(id)),
       restoreVersion: (id) => mutate(() => storage.restorePromptVersion(id)),
       saveSettings: (settings) => mutate(() => storage.saveSettings(settings)),
-      async createRun(run) {
-        const record = await storage.createRun(run);
-        await refresh();
-        return record;
-      },
+      createRun: (run) => mutate(() => storage.createRun(run)),
       deleteRun: (id) => mutate(() => storage.deleteRun(id)),
-      async importData(jsonText) {
-        const result = await storage.importVault(jsonText);
-        await refresh();
-        return result;
-      },
+      clearRuns: () => mutate(() => storage.clearRuns()),
+      importData: (jsonText) => mutate(() => storage.importVault(jsonText)),
       exportData: storage.exportVault,
       versionsFor: (promptId) => snapshot.versions.filter((version) => version.promptId === promptId),
     }),

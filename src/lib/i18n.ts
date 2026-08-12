@@ -57,6 +57,22 @@ export const dict = {
     zh: "确定删除这条 Prompt？此操作不可撤销。",
     en: "Delete this prompt? This cannot be undone.",
   },
+  "form.confirmDiscard": {
+    zh: "有尚未保存的更改，确定离开吗？",
+    en: "You have unsaved changes. Leave without saving?",
+  },
+  "form.remoteChange": {
+    zh: "此 Prompt 已在另一个标签页中更新。你的草稿已保留；保存时将提示版本冲突。",
+    en: "This prompt changed in another tab. Your draft is preserved; saving will report a version conflict.",
+  },
+  "form.remoteDeleted": {
+    zh: "此 Prompt 已在另一个标签页中删除。你的草稿已保留；保存会将其恢复为一条新 Prompt。",
+    en: "This prompt was deleted in another tab. Your draft is preserved; saving will recover it as a new prompt.",
+  },
+  "form.conflictError": {
+    zh: "此 Prompt 已在另一个标签页中更新。请复制你的草稿并刷新后再合并。",
+    en: "This prompt changed in another tab. Copy your draft, refresh, and merge the changes before saving.",
+  },
 
   // Detail
   "detail.editPrompt": { zh: "编辑 Prompt", en: "Edit prompt" },
@@ -94,6 +110,10 @@ export const dict = {
   "runner.empty": { zh: "（空）", en: "(empty)" },
   "runner.copy": { zh: "复制结果", en: "Copy rendered" },
   "runner.copied": { zh: "已复制", en: "Copied" },
+  "runner.copyError": {
+    zh: "复制失败：{msg}",
+    en: "Copy failed: {msg}",
+  },
 
   // Versions panel
   "versions.empty": {
@@ -141,12 +161,20 @@ export const dict = {
   },
   "settings.apiKey": { zh: "API Key", en: "API Key" },
   "settings.apiKeyHint": {
-    zh: "默认仅在当前 tab session 保存，只会发送给所选 Provider。",
-    en: "Kept for this tab session by default and sent only to the selected provider.",
+    zh: "仅保存在当前 tab，并与当前 Provider/endpoint 绑定；切换连接会清空。",
+    en: "Kept only in this tab and scoped to the current provider endpoint. Changing the connection clears it.",
   },
   "settings.model": { zh: "模型", en: "Model" },
   "settings.save": { zh: "保存设置", en: "Save settings" },
   "settings.saved": { zh: "已保存", en: "Saved" },
+  "settings.remoteChange": {
+    zh: "设置已在另一个标签页中更新。你的草稿已保留；保存前请确认是否覆盖远端设置。",
+    en: "Settings changed in another tab. Your draft is preserved; confirm before overwriting the remote settings.",
+  },
+  "settings.confirmRemoteOverwrite": {
+    zh: "设置已在另一个标签页中更新。确定用当前草稿覆盖吗？",
+    en: "Settings changed in another tab. Overwrite them with this draft?",
+  },
   "settings.presets": { zh: "预设", en: "Presets" },
   "settings.presetApply": { zh: "使用", en: "Apply" },
 
@@ -199,6 +227,37 @@ export const dict = {
     en: "Delete this run?",
   },
   "playground.loadInto": { zh: "回填到 Playground", en: "Load into playground" },
+  "playground.createPrompt": { zh: "新建 Prompt", en: "Create prompt" },
+  "playground.clearHistory": { zh: "清空历史", en: "Clear history" },
+  "playground.confirmClearHistory": {
+    zh: "删除全部 {count} 条运行记录？此操作不可撤销。",
+    en: "Delete all {count} run records? This cannot be undone.",
+  },
+  "playground.showMore": {
+    zh: "再显示 {count} 条",
+    en: "Show {count} more",
+  },
+  "playground.errorBadge": { zh: "错误", en: "Error" },
+  "playground.loadRunLabel": {
+    zh: "将 {title} 回填到 Playground",
+    en: "Load {title} into the playground",
+  },
+  "playground.deleteRunLabel": {
+    zh: "删除 {title} 的运行记录",
+    en: "Delete the run for {title}",
+  },
+  "playground.saveRunError": {
+    zh: "模型已返回结果，但运行记录保存失败：{msg}",
+    en: "The model responded, but the run record could not be saved: {msg}",
+  },
+  "playground.deleteRunError": {
+    zh: "删除运行记录失败：{msg}",
+    en: "Could not delete the run: {msg}",
+  },
+  "playground.clearHistoryError": {
+    zh: "清空运行历史失败：{msg}",
+    en: "Could not clear run history: {msg}",
+  },
 
   // Theme
   "theme.dark": { zh: "深色模式", en: "Dark mode" },
@@ -215,7 +274,11 @@ export const dict = {
     en: "Optional. Same-name folders are grouped automatically.",
   },
   "sidebar.uncategorized": { zh: "未分类", en: "Uncategorized" },
-  "sidebar.search": { zh: "搜索标题或标签", en: "Search title or tags" },
+  "sidebar.search": {
+    zh: "搜索标题、内容、标签或文件夹",
+    en: "Search title, content, tags, or folder",
+  },
+  "sidebar.clearSearch": { zh: "清除搜索", en: "Clear search" },
   "sidebar.noResults": { zh: "没有匹配的 Prompt。", en: "No matching prompts." },
 
   // Import/Export
@@ -238,6 +301,10 @@ export const dict = {
     zh: "导入失败：{msg}",
     en: "Import failed: {msg}",
   },
+  "settings.exportError": {
+    zh: "导出失败：{msg}",
+    en: "Export failed: {msg}",
+  },
 
   // Shortcuts
   "shortcuts.title": { zh: "键盘快捷键", en: "Keyboard shortcuts" },
@@ -254,16 +321,12 @@ export const dict = {
   "app.retry": { zh: "重试", en: "Retry" },
   "app.menu": { zh: "打开导航", en: "Open navigation" },
   "app.closeMenu": { zh: "关闭导航", en: "Close navigation" },
+  "app.skipToContent": { zh: "跳到主要内容", en: "Skip to main content" },
   "app.localOnly": { zh: "数据仅保存在此浏览器", en: "Data stays in this browser" },
   "form.error": { zh: "操作失败：{msg}", en: "Operation failed: {msg}" },
-  "settings.rememberApiKey": { zh: "在此浏览器中记住 API Key", en: "Remember API key in this browser" },
-  "settings.rememberApiKeyHint": {
-    zh: "启用后会写入 IndexedDB，可被此页面运行的 JavaScript 读取。仅建议在自己的设备上使用。",
-    en: "When enabled, the key is stored in IndexedDB and can be read by JavaScript running on this origin. Use only on your own device.",
-  },
   "settings.browserWarning": {
-    zh: "这是纯静态 BYOK app。Provider 必须允许 browser CORS；请勿在公共设备保存 API Key。",
-    en: "This is a static BYOK app. The provider must allow browser CORS, and API keys should never be saved on shared devices.",
+    zh: "这是纯静态 BYOK app。API Key 仅保留在当前 tab；共享 github.io origin 下的其他项目仍具有相同存储权限，长期使用建议采用独立域名。Provider 必须允许 browser CORS。",
+    en: "This is a static BYOK app. API keys stay only in this tab. Other projects on the same github.io origin still share storage access, so a dedicated domain is recommended for long-term use. The provider must allow browser CORS.",
   },
   "settings.storageTitle": { zh: "本地存储", en: "Local storage" },
   "settings.storageDesc": {
@@ -272,6 +335,80 @@ export const dict = {
   },
   "notFound.title": { zh: "没有找到这个页面", en: "Page not found" },
   "notFound.home": { zh: "返回首页", en: "Back home" },
+
+  // Provider presets and request errors
+  "provider.noteAnthropic": {
+    zh: "已显式启用浏览器直连。仅在可信设备使用个人 API Key。",
+    en: "Direct browser access is enabled explicitly. Use a personal key only on a trusted device.",
+  },
+  "provider.noteOpenRouter": {
+    zh: "浏览器支持由 Provider 控制；若被阻止会显示 CORS 错误。",
+    en: "Browser support is provider-controlled; a CORS error is shown when access is blocked.",
+  },
+  "provider.noteGroq": {
+    zh: "OpenAI-compatible endpoint；浏览器直连能力由 Provider 控制。",
+    en: "An OpenAI-compatible endpoint; direct browser access is provider-controlled.",
+  },
+  "provider.noteDeepSeek": {
+    zh: "浏览器直连取决于 Provider 当前的 CORS policy。",
+    en: "Direct browser access depends on the provider's current CORS policy.",
+  },
+  "provider.noteGemini": {
+    zh: "使用 Google 的 OpenAI-compatible endpoint。",
+    en: "Uses Google's OpenAI-compatible endpoint.",
+  },
+  "provider.noteOllama": {
+    zh: "本地 Ollama 默认无需 API Key；仍需配置 CORS，HTTPS 页面还可能受到浏览器本地网络策略限制。",
+    en: "Local Ollama needs no API key by default. CORS is still required, and an HTTPS page may be subject to browser local-network restrictions.",
+  },
+  "provider.error.apiKeyMissing": {
+    zh: "尚未配置 API Key，请前往设置。",
+    en: "API key is not set. Configure it in Settings.",
+  },
+  "provider.error.baseUrlMissing": {
+    zh: "OpenAI-compatible Provider 必须填写 Base URL。",
+    en: "A Base URL is required for an OpenAI-compatible provider.",
+  },
+  "provider.error.invalidBaseUrl": {
+    zh: "Provider Base URL 无效。",
+    en: "The provider Base URL is invalid.",
+  },
+  "provider.error.invalidProtocol": {
+    zh: "Provider Base URL 必须使用 HTTP 或 HTTPS。",
+    en: "The provider Base URL must use HTTP or HTTPS.",
+  },
+  "provider.error.insecureTransport": {
+    zh: "远程 Provider 必须使用 HTTPS；HTTP 仅允许 localhost 或 loopback 地址。",
+    en: "Remote providers must use HTTPS; HTTP is allowed only for localhost or loopback addresses.",
+  },
+  "provider.error.invalidResponse": {
+    zh: "Provider 返回了无效的 JSON。",
+    en: "The provider returned invalid JSON.",
+  },
+  "provider.error.modelMissing": {
+    zh: "尚未填写模型名称。",
+    en: "Model is not set.",
+  },
+  "provider.error.network": {
+    zh: "浏览器无法连接 Provider，请检查 Base URL、网络和 CORS policy。",
+    en: "The browser could not reach this provider. Check the Base URL, network, and CORS policy.",
+  },
+  "provider.error.responseTooLarge": {
+    zh: "Provider 响应超过安全大小限制。",
+    en: "The provider response exceeded the safe size limit.",
+  },
+  "provider.error.timeout": {
+    zh: "Provider 请求在 120 秒后超时。",
+    en: "The provider request timed out after 120 seconds.",
+  },
+  "provider.error.aborted": {
+    zh: "Provider 请求已取消。",
+    en: "The provider request was cancelled.",
+  },
+  "provider.error.http": {
+    zh: "{provider} 返回 HTTP {status}：{detail}",
+    en: "{provider} returned HTTP {status}: {detail}",
+  },
 } as const satisfies Record<string, Entry>;
 
 export type Key = keyof typeof dict;

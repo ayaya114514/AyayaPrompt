@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState, useRef, useEffect } from "react";
-import { Link } from "react-router-dom";
-import { ChevronDown, ChevronRight, Folder, Search, Star } from "lucide-react";
+import { useMemo, useState, useRef, useEffect, useId } from "react";
+import { NavLink } from "react-router-dom";
+import { ChevronDown, ChevronRight, Folder, Search, Star, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useT } from "@/lib/i18n-client";
+import { isEditableTarget, isPrimaryModifier } from "@/lib/navigation-guard";
 import { cn } from "@/lib/utils";
 
 export type SidebarItem = {
@@ -13,35 +14,35 @@ export type SidebarItem = {
   favorite: boolean;
   folder: string | null;
   tags: string[];
+  content: string;
 };
 
 export function SidebarList({
   items,
   activeId,
   onNavigate,
+  searchRequest = 0,
 }: {
   items: SidebarItem[];
   activeId?: string;
   onNavigate?: () => void;
+  searchRequest?: number;
 }) {
   const t = useT();
   const [query, setQuery] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const searchRef = useRef<HTMLInputElement>(null);
+  const searchId = useId();
+  const groupIdPrefix = useId();
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      const target = e.target as HTMLElement | null;
-      const isEditable =
-        target &&
-        (target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          (target as HTMLElement).isContentEditable);
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+      if (!searchRef.current || searchRef.current.offsetParent === null) return;
+      if (isPrimaryModifier(e) && !e.altKey && e.key.toLowerCase() === "k") {
         e.preventDefault();
         searchRef.current?.focus();
         searchRef.current?.select();
-      } else if (e.key === "/" && !isEditable) {
+      } else if (e.key === "/" && !isEditableTarget(e.target)) {
         e.preventDefault();
         searchRef.current?.focus();
       }
@@ -50,6 +51,12 @@ export function SidebarList({
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  useEffect(() => {
+    if (searchRequest === 0 || !searchRef.current) return;
+    searchRef.current.focus();
+    searchRef.current.select();
+  }, [searchRequest]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return items;
@@ -57,6 +64,7 @@ export function SidebarList({
       if (it.title.toLowerCase().includes(q)) return true;
       if (it.tags.some((tag) => tag.toLowerCase().includes(q))) return true;
       if (it.folder && it.folder.toLowerCase().includes(q)) return true;
+      if (it.content.toLowerCase().includes(q)) return true;
       return false;
     });
   }, [items, query]);
@@ -82,14 +90,36 @@ export function SidebarList({
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="px-3 pt-3">
         <div className="relative">
+          <label htmlFor={searchId} className="sr-only">
+            {t("sidebar.search")}
+          </label>
           <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
+            id={searchId}
             ref={searchRef}
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(event) => {
+              const nextQuery = event.target.value;
+              if (!query && nextQuery.trim()) setCollapsed({});
+              setQuery(nextQuery);
+            }}
             placeholder={t("sidebar.search")}
-            className="h-8 pl-8 text-xs"
+            type="search"
+            className="h-8 pl-8 pr-8 text-xs [&::-webkit-search-cancel-button]:hidden"
           />
+          {query && (
+            <button
+              type="button"
+              onClick={() => {
+                setQuery("");
+                searchRef.current?.focus();
+              }}
+              aria-label={t("sidebar.clearSearch")}
+              className="absolute right-0 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -99,19 +129,32 @@ export function SidebarList({
             {t("sidebar.empty")}
           </p>
         ) : filtered.length === 0 ? (
-          <p className="px-3 py-6 text-center text-xs text-muted-foreground">
-            {t("sidebar.noResults")}
-          </p>
+          <div className="px-3 py-6 text-center text-xs text-muted-foreground" role="status">
+            <p>{t("sidebar.noResults")}</p>
+            <button
+              type="button"
+              onClick={() => {
+                setQuery("");
+                searchRef.current?.focus();
+              }}
+              className="mt-2 rounded-md px-2 py-1 font-medium text-foreground underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {t("sidebar.clearSearch")}
+            </button>
+          </div>
         ) : (
           <div className="space-y-1">
-            {grouped.map(([folder, list]) => {
+            {grouped.map(([folder, list], index) => {
               const key = folder || "__none__";
               const label = folder || t("sidebar.uncategorized");
-              const isCollapsed = collapsed[key];
+              const isCollapsed = Boolean(collapsed[key]);
+              const groupId = `${groupIdPrefix}-${index}`;
               return (
                 <div key={key}>
                   <button
                     type="button"
+                    aria-expanded={!isCollapsed}
+                    aria-controls={groupId}
                     onClick={() =>
                       setCollapsed((c) => ({ ...c, [key]: !c[key] }))
                     }
@@ -128,16 +171,19 @@ export function SidebarList({
                       {list.length}
                     </span>
                   </button>
-                  {!isCollapsed && (
-                    <ul className="space-y-0.5 pb-1 pl-2">
+                  <ul
+                    id={groupId}
+                    hidden={isCollapsed}
+                    className="space-y-0.5 pb-1 pl-2"
+                  >
                       {list.map((p) => (
                         <li key={p.id}>
-                          <Link
-                            to={"/p/" + p.id}
+                          <NavLink
+                            to={"/p/" + encodeURIComponent(p.id)}
                             onClick={onNavigate}
-                            className={cn(
-                              "block rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent",
-                              activeId === p.id && "bg-accent",
+                            className={({ isActive }) => cn(
+                              "block rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                              (isActive || activeId === p.id) && "bg-accent",
                             )}
                           >
                             <div className="flex items-center gap-2">
@@ -160,11 +206,10 @@ export function SidebarList({
                                 ))}
                               </div>
                             )}
-                          </Link>
+                          </NavLink>
                         </li>
                       ))}
-                    </ul>
-                  )}
+                  </ul>
                 </div>
               );
             })}

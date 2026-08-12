@@ -14,10 +14,12 @@ export function DataManagement() {
   const { exportData, importData } = useVault();
   const fileRef = useRef<HTMLInputElement>(null);
   const [importState, setImportState] = useState<ImportState>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function onExport() {
     setBusy(true);
+    setExportError(null);
     try {
       const json = await exportData();
       const blob = new Blob([json], { type: "application/json" });
@@ -29,6 +31,8 @@ export function DataManagement() {
       anchor.click();
       anchor.remove();
       URL.revokeObjectURL(url);
+    } catch (cause) {
+      setExportError(cause instanceof Error ? cause.message : String(cause));
     } finally {
       setBusy(false);
     }
@@ -60,7 +64,7 @@ export function DataManagement() {
         <div className="space-y-2 rounded-md border p-4">
           <h3 className="text-sm font-medium">{t("settings.export")}</h3>
           <p className="text-xs text-muted-foreground">{t("settings.exportDesc")}</p>
-          <Button size="sm" variant="outline" onClick={onExport} disabled={busy}>
+          <Button size="sm" variant="outline" onClick={() => void onExport()} disabled={busy}>
             <Download className="h-4 w-4" /> {t("settings.export")}
           </Button>
         </div>
@@ -85,13 +89,23 @@ export function DataManagement() {
         </div>
       </div>
 
+      {exportError && (
+        <div
+          role="alert"
+          className="flex items-center gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-xs text-destructive-text"
+        >
+          <AlertCircle className="h-4 w-4" />
+          {t("settings.exportError", { msg: exportError })}
+        </div>
+      )}
+
       {importState && (importState.ok ? (
-        <div className="flex items-center gap-2 rounded-md border border-green-500/40 bg-green-500/5 p-3 text-xs text-green-700 dark:text-green-400">
+        <div role="status" className="flex items-center gap-2 rounded-md border border-green-500/40 bg-green-500/5 p-3 text-xs text-green-700 dark:text-green-400">
           <Check className="h-4 w-4" />
           {t("settings.importResult", { added: importState.added, skipped: importState.skipped })}
         </div>
       ) : (
-        <div className="flex items-center gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-xs text-destructive">
+        <div role="alert" className="flex items-center gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-xs text-destructive-text">
           <AlertCircle className="h-4 w-4" />
           {t("settings.importError", { msg: importState.msg })}
         </div>

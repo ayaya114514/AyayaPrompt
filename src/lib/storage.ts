@@ -9,8 +9,10 @@ import type {
 } from "@/lib/types";
 
 const DB_NAME = "promptvault-browser";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const SESSION_API_KEY = "promptvault-session-api-key";
+
+export const RUN_RETENTION_LIMIT = 100;
 
 const STORES = {
   prompts: "prompts",
@@ -25,7 +27,15 @@ export const DEFAULT_SETTINGS: AppSettings = {
   baseURL: "https://api.anthropic.com",
   apiKey: "",
   model: "claude-sonnet-4-5",
-  rememberApiKey: false,
+};
+
+type StoredSettings = Omit<AppSettings, "apiKey">;
+
+type SessionApiKeyEnvelope = {
+  version: 1;
+  provider: Provider;
+  baseURL: string;
+  apiKey: string;
 };
 
 let databasePromise: Promise<IDBDatabase> | null = null;
@@ -51,7 +61,7 @@ function openDatabase(): Promise<IDBDatabase> {
   databasePromise = new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 
-    request.onupgradeneeded = () => {
+    request.onupgradeneeded = (event) => {
       const database = request.result;
 
       if (!database.objectStoreNames.contains(STORES.prompts)) {
@@ -73,6 +83,30 @@ function openDatabase(): Promise<IDBDatabase> {
 
       if (!database.objectStoreNames.contains(STORES.settings)) {
         database.createObjectStore(STORES.settings, { keyPath: "id" });
+      }
+
+      if (event.oldVersion < 2 && request.transaction) {
+        const settings = request.transaction.objectStore(STORES.settings);
+        const legacySettingsRequest = settings.get("singleton");
+        legacySettingsRequest.onsuccess = () => {
+          if (legacySettingsRequest.result) {
+            // Schema v1 could contain a long-lived credential. Rewrite the
+            // record with an explicit allow-list so unknown/secret fields are
+            // removed as part of the atomic database upgrade.
+            settings.put(toStoredSettings(legacySettingsRequest.result));
+          }
+        };
+
+        const runs = request.transaction.objectStore(STORES.runs);
+        let retainedRuns = 0;
+        const runCursor = runs.index("createdAt").openCursor(null, "prev");
+        runCursor.onsuccess = () => {
+          const cursor = runCursor.result;
+          if (!cursor) return;
+          retainedRuns += 1;
+          if (retainedRuns > RUN_RETENTION_LIMIT) cursor.delete();
+          cursor.continue();
+        };
       }
     };
 
@@ -100,21 +134,93 @@ function createId(): string {
   return Date.now().toString(36) + "-" + Math.random().toString(36).slice(2);
 }
 
-function safeSessionGet(): string {
+function normalizeBaseURLScope(baseURL: string): string {
+  const trimmed = baseURL.trim();
   try {
-    return sessionStorage.getItem(SESSION_API_KEY) ?? "";
+    const url = new URL(trimmed);
+    url.hash = "";
+    const pathname = url.pathname.replace(/\/+$/, "");
+    return url.origin + pathname + url.search;
+  } catch {
+    return trimmed.replace(/\/+$/, "");
+  }
+}
+
+function safeSessionGet(settings: Pick<AppSettings, "provider" | "baseURL">): string {
+  try {
+    const serialized = sessionStorage.getItem(SESSION_API_KEY);
+    if (!serialized) return "";
+
+    let envelope: unknown;
+    try {
+      envelope = JSON.parse(serialized);
+    } catch {
+      sessionStorage.removeItem(SESSION_API_KEY);
+      return "";
+    }
+
+    if (!envelope || typeof envelope !== "object") {
+      sessionStorage.removeItem(SESSION_API_KEY);
+      return "";
+    }
+    const candidate = envelope as Partial<SessionApiKeyEnvelope>;
+    const matches = candidate.version === 1
+      && candidate.provider === settings.provider
+      && candidate.baseURL === normalizeBaseURLScope(settings.baseURL)
+      && typeof candidate.apiKey === "string"
+      && candidate.apiKey.length > 0;
+    if (!matches) {
+      sessionStorage.removeItem(SESSION_API_KEY);
+      return "";
+    }
+    return candidate.apiKey ?? "";
   } catch {
     return "";
   }
 }
 
-function safeSessionSet(value: string): void {
+function safeSessionSet(settings: Pick<AppSettings, "provider" | "baseURL" | "apiKey">): void {
   try {
-    if (value) sessionStorage.setItem(SESSION_API_KEY, value);
-    else sessionStorage.removeItem(SESSION_API_KEY);
+    if (!settings.apiKey) {
+      sessionStorage.removeItem(SESSION_API_KEY);
+      return;
+    }
+    const envelope: SessionApiKeyEnvelope = {
+      version: 1,
+      provider: settings.provider,
+      baseURL: normalizeBaseURLScope(settings.baseURL),
+      apiKey: settings.apiKey,
+    };
+    sessionStorage.setItem(SESSION_API_KEY, JSON.stringify(envelope));
   } catch {
     // Session-only key persistence is best effort in restricted browser modes.
   }
+}
+
+function toStoredSettings(value: unknown): StoredSettings {
+  const candidate = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  return {
+    id: "singleton",
+    provider: isProvider(candidate.provider) ? candidate.provider : DEFAULT_SETTINGS.provider,
+    baseURL: typeof candidate.baseURL === "string" && candidate.baseURL.trim()
+      ? candidate.baseURL.trim()
+      : DEFAULT_SETTINGS.baseURL,
+    model: typeof candidate.model === "string" && candidate.model.trim()
+      ? candidate.model.trim()
+      : DEFAULT_SETTINGS.model,
+  };
+}
+
+function nextUpdatedAt(previous: string): string {
+  const previousTime = Date.parse(previous);
+  const nextTime = Number.isNaN(previousTime)
+    ? Date.now()
+    : Math.max(Date.now(), previousTime + 1);
+  return new Date(nextTime).toISOString();
+}
+
+function isRouteSafeId(value: string): boolean {
+  return /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(value);
 }
 
 function normalizeTags(value: unknown): string[] {
@@ -146,7 +252,7 @@ export async function readVaultSnapshot(): Promise<VaultSnapshot> {
     requestResult(transaction.objectStore(STORES.prompts).getAll()) as Promise<PromptRecord[]>,
     requestResult(transaction.objectStore(STORES.versions).getAll()) as Promise<PromptVersionRecord[]>,
     requestResult(transaction.objectStore(STORES.runs).getAll()) as Promise<PlaygroundRunRecord[]>,
-    requestResult(transaction.objectStore(STORES.settings).get("singleton")) as Promise<AppSettings | undefined>,
+    requestResult(transaction.objectStore(STORES.settings).get("singleton")) as Promise<StoredSettings | undefined>,
   ]);
   await done;
 
@@ -154,11 +260,11 @@ export async function readVaultSnapshot(): Promise<VaultSnapshot> {
   versions.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   runs.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
-  const baseSettings = storedSettings ?? DEFAULT_SETTINGS;
+  const baseSettings = toStoredSettings(storedSettings ?? DEFAULT_SETTINGS);
   const settings: AppSettings = {
     ...DEFAULT_SETTINGS,
     ...baseSettings,
-    apiKey: baseSettings.rememberApiKey ? baseSettings.apiKey : safeSessionGet(),
+    apiKey: safeSessionGet(baseSettings),
   };
 
   return { prompts, versions, runs, settings };
@@ -175,7 +281,23 @@ export async function createPrompt(input: PromptInput): Promise<PromptRecord> {
   return prompt;
 }
 
-export async function updatePrompt(id: string, input: PromptInput): Promise<void> {
+export class PromptConflictError extends Error {
+  override name = "PromptConflictError";
+
+  constructor() {
+    super("This prompt changed in another tab. Reload it before saving your edits.");
+  }
+}
+
+export class PromptNotFoundError extends Error {
+  override name = "PromptNotFoundError";
+
+  constructor() {
+    super("Prompt not found");
+  }
+}
+
+export async function updatePrompt(id: string, input: PromptInput, expectedUpdatedAt: string): Promise<void> {
   const database = await openDatabase();
   const transaction = database.transaction([STORES.prompts, STORES.versions], "readwrite");
   const done = transactionDone(transaction);
@@ -184,10 +306,20 @@ export async function updatePrompt(id: string, input: PromptInput): Promise<void
   if (!current) {
     transaction.abort();
     await done.catch(() => undefined);
-    throw new Error("Prompt not found");
+    throw new PromptNotFoundError();
   }
 
-  const changed = current.title !== input.title || current.content !== input.content || JSON.stringify(current.tags) !== JSON.stringify(input.tags);
+  if (current.updatedAt !== expectedUpdatedAt) {
+    transaction.abort();
+    await done.catch(() => undefined);
+    throw new PromptConflictError();
+  }
+
+  const changed = current.title !== input.title
+    || current.content !== input.content
+    || JSON.stringify(current.tags) !== JSON.stringify(input.tags)
+    || current.favorite !== input.favorite
+    || current.folder !== input.folder;
   if (changed) {
     const version: PromptVersionRecord = {
       id: createId(),
@@ -195,12 +327,13 @@ export async function updatePrompt(id: string, input: PromptInput): Promise<void
       title: current.title,
       content: current.content,
       tags: current.tags,
+      favorite: current.favorite,
+      folder: current.folder,
       createdAt: new Date().toISOString(),
     };
     transaction.objectStore(STORES.versions).add(version);
+    prompts.put({ ...current, ...input, updatedAt: nextUpdatedAt(current.updatedAt) });
   }
-
-  prompts.put({ ...current, ...input, updatedAt: new Date().toISOString() });
   await done;
 }
 
@@ -215,8 +348,8 @@ export async function deletePrompt(id: string): Promise<void> {
   versionKeys.forEach((key) => versions.delete(key));
 
   const runs = transaction.objectStore(STORES.runs);
-  const linkedRuns = (await requestResult(runs.index("promptId").getAll(id))) as PlaygroundRunRecord[];
-  linkedRuns.forEach((run) => runs.put({ ...run, promptId: null }));
+  const runKeys = await requestResult(runs.index("promptId").getAllKeys(id));
+  runKeys.forEach((key) => runs.delete(key));
   await done;
 }
 
@@ -226,7 +359,7 @@ export async function togglePromptFavorite(id: string): Promise<void> {
   const done = transactionDone(transaction);
   const store = transaction.objectStore(STORES.prompts);
   const prompt = (await requestResult(store.get(id))) as PromptRecord | undefined;
-  if (prompt) store.put({ ...prompt, favorite: !prompt.favorite, updatedAt: new Date().toISOString() });
+  if (prompt) store.put({ ...prompt, favorite: !prompt.favorite, updatedAt: nextUpdatedAt(prompt.updatedAt) });
   await done;
 }
 
@@ -247,7 +380,7 @@ export async function restorePromptVersion(versionId: string): Promise<void> {
   if (!current) {
     transaction.abort();
     await done.catch(() => undefined);
-    throw new Error("Prompt not found");
+    throw new PromptNotFoundError();
   }
 
   versions.add({
@@ -256,6 +389,8 @@ export async function restorePromptVersion(versionId: string): Promise<void> {
     title: current.title,
     content: current.content,
     tags: current.tags,
+    favorite: current.favorite,
+    folder: current.folder,
     createdAt: new Date().toISOString(),
   } satisfies PromptVersionRecord);
   prompts.put({
@@ -263,23 +398,22 @@ export async function restorePromptVersion(versionId: string): Promise<void> {
     title: version.title,
     content: version.content,
     tags: version.tags,
-    updatedAt: new Date().toISOString(),
+    favorite: version.favorite ?? current.favorite,
+    folder: version.folder === undefined ? current.folder : version.folder,
+    updatedAt: nextUpdatedAt(current.updatedAt),
   });
   await done;
 }
 
 export async function saveSettings(settings: AppSettings): Promise<void> {
-  const stored: AppSettings = {
-    ...settings,
-    apiKey: settings.rememberApiKey ? settings.apiKey : "",
-  };
-  safeSessionSet(settings.rememberApiKey ? "" : settings.apiKey);
+  const stored = toStoredSettings(settings);
 
   const database = await openDatabase();
   const transaction = database.transaction(STORES.settings, "readwrite");
   const done = transactionDone(transaction);
   transaction.objectStore(STORES.settings).put(stored);
   await done;
+  safeSessionSet(settings);
 }
 
 export async function createRun(run: Omit<PlaygroundRunRecord, "id" | "createdAt">): Promise<PlaygroundRunRecord> {
@@ -287,7 +421,11 @@ export async function createRun(run: Omit<PlaygroundRunRecord, "id" | "createdAt
   const database = await openDatabase();
   const transaction = database.transaction(STORES.runs, "readwrite");
   const done = transactionDone(transaction);
-  transaction.objectStore(STORES.runs).add(record);
+  const runs = transaction.objectStore(STORES.runs);
+  const existing = (await requestResult(runs.getAll())) as PlaygroundRunRecord[];
+  existing.sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
+  existing.slice(RUN_RETENTION_LIMIT - 1).forEach((run) => runs.delete(run.id));
+  runs.add(record);
   await done;
   return record;
 }
@@ -297,6 +435,14 @@ export async function deleteRun(id: string): Promise<void> {
   const transaction = database.transaction(STORES.runs, "readwrite");
   const done = transactionDone(transaction);
   transaction.objectStore(STORES.runs).delete(id);
+  await done;
+}
+
+export async function clearRuns(): Promise<void> {
+  const database = await openDatabase();
+  const transaction = database.transaction(STORES.runs, "readwrite");
+  const done = transactionDone(transaction);
+  transaction.objectStore(STORES.runs).clear();
   await done;
 }
 
@@ -332,11 +478,13 @@ export async function importVault(jsonText: string): Promise<{ added: number; sk
       continue;
     }
 
-    const id = typeof raw.id === "string" && raw.id ? raw.id : createId();
-    if (await requestResult(promptStore.get(id))) {
+    const hasSafeSourceId = typeof raw.id === "string" && isRouteSafeId(raw.id);
+    let id = hasSafeSourceId ? raw.id as string : createId();
+    if (hasSafeSourceId && await requestResult(promptStore.get(id))) {
       skipped++;
       continue;
     }
+    while (await requestResult(promptStore.get(id))) id = createId();
 
     const now = new Date().toISOString();
     const prompt: PromptRecord = {
@@ -356,14 +504,23 @@ export async function importVault(jsonText: string): Promise<{ added: number; sk
         if (!item || typeof item !== "object") continue;
         const source = item as UnknownRecord;
         if (typeof source.title !== "string" || typeof source.content !== "string") continue;
-        let versionId = typeof source.id === "string" && source.id ? source.id : createId();
-        if (await requestResult(versionStore.get(versionId))) versionId = createId();
+        let versionId = typeof source.id === "string" && isRouteSafeId(source.id)
+          ? source.id
+          : createId();
+        while (await requestResult(versionStore.get(versionId))) versionId = createId();
+        const versionFolder = source.folder === null
+          ? null
+          : typeof source.folder === "string"
+            ? source.folder.trim() || null
+            : undefined;
         versionStore.add({
           id: versionId,
           promptId: id,
           title: source.title,
           content: source.content,
           tags: normalizeTags(source.tags),
+          ...(typeof source.favorite === "boolean" ? { favorite: source.favorite } : {}),
+          ...(versionFolder !== undefined ? { folder: versionFolder } : {}),
           createdAt: normalizeDate(source.createdAt, now),
         } satisfies PromptVersionRecord);
       }
@@ -399,7 +556,11 @@ export async function resetVaultStorageForTests(): Promise<void> {
     databasePromise = null;
   }
   await requestResult(indexedDB.deleteDatabase(DB_NAME));
-  safeSessionSet("");
+  try {
+    sessionStorage.removeItem(SESSION_API_KEY);
+  } catch {
+    // Test environments may not expose sessionStorage.
+  }
 }
 
 export function isProvider(value: unknown): value is Provider {

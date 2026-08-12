@@ -2,7 +2,7 @@ import { useState } from "react";
 import { History, RotateCcw, ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DiffView } from "@/components/diff-view";
-import { useT } from "@/lib/i18n-client";
+import { useLocale, useT } from "@/lib/i18n-client";
 import { useVault } from "@/lib/vault-context";
 import { cn } from "@/lib/utils";
 import type { PromptVersionRecord } from "@/lib/types";
@@ -15,6 +15,7 @@ export function VersionsPanel({
   versions: PromptVersionRecord[];
 }) {
   const t = useT();
+  const locale = useLocale();
   const { restoreVersion } = useVault();
   const [openId, setOpenId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -44,10 +45,15 @@ export function VersionsPanel({
 
   return (
     <div className="space-y-2">
-      {error && <p className="text-xs text-destructive">{t("form.error", { msg: error })}</p>}
+      {error && (
+        <p role="alert" className="text-xs text-destructive-text">
+          {t("form.error", { msg: error })}
+        </p>
+      )}
       {versions.map((version, index) => {
         const isOpen = openId === version.id;
         const versionNumber = versions.length - index;
+        const panelId = `version-panel-${version.id}`;
         return (
           <div
             key={version.id}
@@ -55,6 +61,8 @@ export function VersionsPanel({
           >
             <button
               type="button"
+              aria-expanded={isOpen}
+              aria-controls={panelId}
               onClick={() => setOpenId(isOpen ? null : version.id)}
               className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent/50"
             >
@@ -63,11 +71,14 @@ export function VersionsPanel({
               <span className="font-mono text-xs text-muted-foreground">v{versionNumber}</span>
               <span className="truncate font-medium">{version.title}</span>
               <span className="ml-auto text-xs text-muted-foreground">
-                {new Date(version.createdAt).toLocaleString()}
+                {new Intl.DateTimeFormat(locale === "zh" ? "zh-CN" : "en", {
+                  dateStyle: "short",
+                  timeStyle: "short",
+                }).format(new Date(version.createdAt))}
               </span>
             </button>
             {isOpen && (
-              <div className="space-y-3 border-t p-3">
+              <div id={panelId} className="space-y-3 border-t p-3">
                 <DiffView
                   oldText={version.content}
                   newText={current.content}

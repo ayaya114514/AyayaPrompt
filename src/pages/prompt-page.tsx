@@ -1,3 +1,4 @@
+import { useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { AlertCircle } from "lucide-react";
 import { PromptForm } from "@/components/prompt-form";
@@ -5,8 +6,9 @@ import { VariableRunner } from "@/components/variable-runner";
 import { VersionsPanel } from "@/components/versions-panel";
 import { Button } from "@/components/ui/button";
 import { extractVariables } from "@/lib/variables";
-import { useT } from "@/lib/i18n-client";
+import { useLocale, useT } from "@/lib/i18n-client";
 import { useVault } from "@/lib/vault-context";
+import type { PromptRecord } from "@/lib/types";
 
 export function NewPromptPage() {
   const t = useT();
@@ -23,11 +25,20 @@ export function NewPromptPage() {
 
 export function PromptPage() {
   const t = useT();
+  const locale = useLocale();
   const { id = "" } = useParams();
   const { prompts, versionsFor } = useVault();
   const prompt = prompts.find((item) => item.id === id);
+  const [formDirty, setFormDirty] = useState(false);
+  const lastPromptRef = useRef<{ id: string; prompt: PromptRecord } | null>(null);
+  if (prompt) lastPromptRef.current = { id, prompt };
+  const retainedPrompt = formDirty && lastPromptRef.current?.id === id
+    ? lastPromptRef.current.prompt
+    : undefined;
+  const visiblePrompt = prompt ?? retainedPrompt;
+  const deletedRemotely = !prompt && Boolean(retainedPrompt);
 
-  if (!prompt) {
+  if (!visiblePrompt) {
     return (
       <div className="flex min-h-full items-center justify-center p-8 text-center">
         <div>
@@ -39,17 +50,24 @@ export function PromptPage() {
     );
   }
 
-  const variables = extractVariables(prompt.content);
-  const versions = versionsFor(prompt.id);
+  const variables = extractVariables(visiblePrompt.content);
+  const versions = deletedRemotely ? [] : versionsFor(visiblePrompt.id);
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-8 p-5 sm:p-8">
       <header className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-xs uppercase tracking-wide text-muted-foreground">{t("detail.editPrompt")}</h1>
-          <p className="mt-1 text-xs text-muted-foreground">{t("detail.lastUpdated", { date: new Date(prompt.updatedAt).toLocaleString() })}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {t("detail.lastUpdated", {
+              date: new Intl.DateTimeFormat(locale === "zh" ? "zh-CN" : "en", {
+                dateStyle: "medium",
+                timeStyle: "short",
+              }).format(new Date(visiblePrompt.updatedAt)),
+            })}
+          </p>
         </div>
-        <VariableRunner title={prompt.title} content={prompt.content} />
+        <VariableRunner title={visiblePrompt.title} content={visiblePrompt.content} />
       </header>
 
       {variables.length > 0 && (
@@ -60,25 +78,28 @@ export function PromptPage() {
       )}
 
       <PromptForm
-        key={prompt.updatedAt + ":" + versions.length}
+        key={visiblePrompt.id}
         mode="edit"
-        id={prompt.id}
+        id={visiblePrompt.id}
+        updatedAt={visiblePrompt.updatedAt}
+        deletedRemotely={deletedRemotely}
+        onDirtyChange={setFormDirty}
         defaults={{
-          title: prompt.title,
-          content: prompt.content,
-          tags: prompt.tags,
-          favorite: prompt.favorite,
-          folder: prompt.folder,
+          title: visiblePrompt.title,
+          content: visiblePrompt.content,
+          tags: visiblePrompt.tags,
+          favorite: visiblePrompt.favorite,
+          folder: visiblePrompt.folder,
         }}
       />
 
-      <section className="space-y-3 border-t pt-6">
+      {!deletedRemotely && <section className="space-y-3 border-t pt-6">
         <div className="flex items-baseline justify-between">
           <h2 className="text-sm font-semibold">{t("detail.history")}</h2>
           <span className="text-xs text-muted-foreground">{t("detail.versionCount", { n: versions.length, s: versions.length === 1 ? "" : "s" })}</span>
         </div>
-        <VersionsPanel current={{ title: prompt.title, content: prompt.content }} versions={versions} />
-      </section>
+        <VersionsPanel current={{ title: visiblePrompt.title, content: visiblePrompt.content }} versions={versions} />
+      </section>}
     </div>
   );
 }

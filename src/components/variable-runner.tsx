@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Copy, Play, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,6 +27,15 @@ export function VariableRunner({
   const variables = useMemo(() => extractVariables(content), [content]);
   const [values, setValues] = useState<Record<string, string>>({});
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState<string | null>(null);
+  const copiedTimer = useRef<number | null>(null);
+
+  useEffect(
+    () => () => {
+      if (copiedTimer.current !== null) window.clearTimeout(copiedTimer.current);
+    },
+    [],
+  );
 
   const rendered = useMemo(
     () => fillVariables(content, values),
@@ -34,15 +43,25 @@ export function VariableRunner({
   );
 
   async function copy() {
-    await navigator.clipboard.writeText(rendered);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    setCopyError(null);
+    try {
+      await navigator.clipboard.writeText(rendered);
+      setCopied(true);
+      if (copiedTimer.current !== null) window.clearTimeout(copiedTimer.current);
+      copiedTimer.current = window.setTimeout(() => setCopied(false), 1500);
+    } catch (cause) {
+      setCopied(false);
+      setCopyError(cause instanceof Error ? cause.message : String(cause));
+    }
   }
 
   return (
     <Dialog
       onOpenChange={(open) => {
-        if (!open) setCopied(false);
+        if (!open) {
+          setCopied(false);
+          setCopyError(null);
+        }
       }}
     >
       <DialogTrigger asChild>
@@ -53,7 +72,7 @@ export function VariableRunner({
             : t("runner.fill")}
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-w-3xl" closeLabel={t("shortcuts.close")}>
         <DialogHeader>
           <DialogTitle>{t("runner.dialogTitle", { title })}</DialogTitle>
           <DialogDescription>{t("runner.dialogDesc")}</DialogDescription>
@@ -100,7 +119,15 @@ export function VariableRunner({
         </div>
 
         <div className="flex justify-end gap-2 border-t pt-3">
-          <Button size="sm" onClick={copy} variant="outline">
+          <div className="mr-auto min-w-0" aria-live="polite">
+            {copyError && (
+              <p role="alert" className="text-xs text-destructive-text">
+                {t("runner.copyError", { msg: copyError })}
+              </p>
+            )}
+            {copied && <p role="status" className="sr-only">{t("runner.copied")}</p>}
+          </div>
+          <Button type="button" size="sm" onClick={() => void copy()} variant="outline">
             {copied ? (
               <>
                 <Check className="h-4 w-4" /> {t("runner.copied")}

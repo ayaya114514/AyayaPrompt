@@ -17,6 +17,10 @@ export type PromptVersionRecord = {
   title: string;
   content: string;
   tags: string[];
+  /** Optional for compatibility with versions created before schema v2. */
+  favorite?: boolean;
+  /** Optional for compatibility with versions created before schema v2. */
+  folder?: string | null;
   createdAt: string;
 };
 
@@ -40,9 +44,9 @@ export type AppSettings = {
   id: "singleton";
   provider: Provider;
   baseURL: string;
+  /** Session-only. This value is never written to IndexedDB or exports. */
   apiKey: string;
   model: string;
-  rememberApiKey: boolean;
 };
 
 export type PromptInput = Pick<

@@ -19,6 +19,7 @@
     --accent-foreground: 222 47% 11%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
+    --destructive-text: 0 72% 40%;
     --border: 214 32% 91%;
     --input: 214 32% 91%;
     --ring: 222 47% 11%;
@@ -41,6 +42,7 @@
     --accent-foreground: 210 40% 98%;
     --destructive: 0 63% 40%;
     --destructive-foreground: 210 40% 98%;
+    --destructive-text: 0 82% 72%;
     --border: 217 33% 17%;
     --input: 217 33% 17%;
     --ring: 212 27% 84%;
@@ -69,5 +71,16 @@
   textarea,
   select {
     font: inherit;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      scroll-behavior: auto !important;
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 }

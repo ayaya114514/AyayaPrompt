@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Keyboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useT } from "@/lib/i18n-client";
+import {
+  confirmDiscardChanges,
+  isEditableTarget,
+  isPrimaryModifier,
+} from "@/lib/navigation-guard";
 
 const isMac =
   typeof navigator !== "undefined" && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
@@ -28,19 +33,28 @@ export function ShortcutsButton() {
   const t = useT();
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      const target = e.target as HTMLElement | null;
-      const isEditable =
-        target &&
-        (target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          (target as HTMLElement).isContentEditable);
+      const shortcutButtons = Array.from(
+        document.querySelectorAll<HTMLElement>("[data-shortcuts-owner]"),
+      );
+      const owner = shortcutButtons.find((button) => button.offsetParent !== null)
+        ?? shortcutButtons[0];
+      if (owner !== buttonRef.current) return;
 
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "n" && !e.shiftKey) {
+      const isEditable = isEditableTarget(e.target);
+
+      if (
+        isPrimaryModifier(e) &&
+        !e.altKey &&
+        !e.shiftKey &&
+        e.key.toLowerCase() === "n" &&
+        !isEditable
+      ) {
         e.preventDefault();
-        navigate("/new");
+        if (confirmDiscardChanges()) navigate("/new");
       } else if (e.key === "?" && !isEditable) {
         e.preventDefault();
         setOpen(true);
@@ -82,6 +96,8 @@ export function ShortcutsButton() {
   return (
     <>
       <Button
+        ref={buttonRef}
+        data-shortcuts-owner
         type="button"
         variant="ghost"
         size="sm"
@@ -92,7 +108,7 @@ export function ShortcutsButton() {
         {t("shortcuts.title")}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent closeLabel={t("shortcuts.close")} className="max-w-md">
           <DialogHeader>
             <DialogTitle>{t("shortcuts.title")}</DialogTitle>
           </DialogHeader>

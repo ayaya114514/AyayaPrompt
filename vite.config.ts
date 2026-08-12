@@ -12,9 +12,24 @@ export default defineConfig({
   },
   build: {
     outDir: "dist",
-    sourcemap: true,
+    sourcemap: false,
   },
   test: {
     include: ["src/**/*.test.{ts,tsx}"],
+    coverage: {
+      provider: "v8",
+      include: [
+        "src/lib/providers.ts",
+        "src/lib/storage.ts",
+        "src/lib/variables.ts",
+      ],
+      reporter: ["text", "json-summary"],
+      thresholds: {
+        statements: 75,
+        branches: 65,
+        functions: 75,
+        lines: 75,
+      },
+    },
   },
 });
