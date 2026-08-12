@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Star, Trash2, Save, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -62,15 +62,15 @@ export function PromptForm(props: PromptFormProps) {
   const incomingUpdatedAt = props.mode === "edit" ? props.updatedAt : null;
   const onDirtyChange = props.onDirtyChange;
   const [draft, setDraft] = useState<PromptDraft>(() => toDraft(defaults));
+  const [initialSignature, setInitialSignature] = useState(incomingSignature);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [dirty, setDirty] = useState(false);
-  const initialSignatureRef = useRef(incomingSignature);
   const expectedUpdatedAtRef = useRef(incomingUpdatedAt);
+  const dirty = draftSignature(draft) !== initialSignature;
   const { markClean } = useDirtyNavigationGuard(dirty, t("form.confirmDiscard"));
   const hasRemoteChange = dirty && incomingUpdatedAt !== expectedUpdatedAtRef.current;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     onDirtyChange?.(dirty);
     return () => onDirtyChange?.(false);
   }, [dirty, onDirtyChange]);
@@ -78,7 +78,7 @@ export function PromptForm(props: PromptFormProps) {
   useEffect(() => {
     if (dirty || incomingUpdatedAt === null) return;
     expectedUpdatedAtRef.current = incomingUpdatedAt;
-    initialSignatureRef.current = incomingSignature;
+    setInitialSignature(incomingSignature);
     setDraft((current) =>
       draftSignature(current) === incomingSignature
         ? current
@@ -87,11 +87,7 @@ export function PromptForm(props: PromptFormProps) {
   }, [dirty, incomingSignature, incomingUpdatedAt]);
 
   function patchDraft(next: Partial<PromptDraft>) {
-    setDraft((current) => {
-      const updated = { ...current, ...next };
-      setDirty(draftSignature(updated) !== initialSignatureRef.current);
-      return updated;
-    });
+    setDraft((current) => ({ ...current, ...next }));
   }
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -127,9 +123,8 @@ export function PromptForm(props: PromptFormProps) {
       }
 
       const normalizedDraft = toDraft(input);
-      initialSignatureRef.current = draftSignature(normalizedDraft);
+      setInitialSignature(draftSignature(normalizedDraft));
       setDraft(normalizedDraft);
-      setDirty(false);
       markClean();
       if (recoveredPromptId) {
         navigate("/p/" + encodeURIComponent(recoveredPromptId), { replace: true });

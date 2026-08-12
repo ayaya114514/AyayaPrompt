@@ -13,25 +13,25 @@ export function SettingsForm() {
   const t = useT();
   const { settings, saveSettings } = useVault();
   const [form, setForm] = useState<AppSettings>(settings);
+  const [initialSignature, setInitialSignature] = useState(JSON.stringify(settings));
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [dirty, setDirty] = useState(false);
   const [remoteChange, setRemoteChange] = useState(false);
   const savedTimer = useRef<number | null>(null);
-  const initialSignatureRef = useRef(JSON.stringify(settings));
+  const dirty = JSON.stringify(form) !== initialSignature;
   const { markClean } = useDirtyNavigationGuard(dirty, t("form.confirmDiscard"));
 
   useEffect(() => {
     const incomingSignature = JSON.stringify(settings);
     if (dirty) {
-      if (incomingSignature !== initialSignatureRef.current) setRemoteChange(true);
+      if (incomingSignature !== initialSignature) setRemoteChange(true);
       return;
     }
-    initialSignatureRef.current = JSON.stringify(settings);
+    setInitialSignature(incomingSignature);
     setForm(settings);
     setRemoteChange(false);
-  }, [dirty, settings]);
+  }, [dirty, initialSignature, settings]);
   useEffect(
     () => () => {
       if (savedTimer.current !== null) window.clearTimeout(savedTimer.current);
@@ -41,11 +41,7 @@ export function SettingsForm() {
 
   function patch(next: Partial<AppSettings>) {
     setSaved(false);
-    setForm((current) => {
-      const updated = { ...current, ...next };
-      setDirty(JSON.stringify(updated) !== initialSignatureRef.current);
-      return updated;
-    });
+    setForm((current) => ({ ...current, ...next }));
   }
 
   function patchConnection(next: Partial<Pick<AppSettings, "provider" | "baseURL" | "model">>) {
@@ -55,13 +51,11 @@ export function SettingsForm() {
       const baseURL = next.baseURL ?? current.baseURL;
       const connectionChanged =
         provider !== current.provider || baseURL !== current.baseURL;
-      const updated = {
+      return {
         ...current,
         ...next,
         apiKey: connectionChanged ? "" : current.apiKey,
       };
-      setDirty(JSON.stringify(updated) !== initialSignatureRef.current);
-      return updated;
     });
   }
 
@@ -78,9 +72,8 @@ export function SettingsForm() {
         model: form.model.trim(),
       };
       await saveSettings(normalized);
-      initialSignatureRef.current = JSON.stringify(normalized);
+      setInitialSignature(JSON.stringify(normalized));
       setForm(normalized);
-      setDirty(false);
       setRemoteChange(false);
       markClean();
       setSaved(true);
