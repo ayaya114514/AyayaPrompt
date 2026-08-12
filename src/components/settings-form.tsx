@@ -92,7 +92,12 @@ export function SettingsForm() {
   );
 
   return (
-    <form onSubmit={onSubmit} className="space-y-6" aria-busy={busy}>
+    <form
+      onSubmit={onSubmit}
+      className="space-y-6"
+      aria-busy={busy}
+      data-dirty={dirty ? "true" : "false"}
+    >
       <div className="flex items-start gap-2 rounded-md border border-yellow-500/40 bg-yellow-500/5 p-3 text-xs leading-relaxed text-yellow-800 dark:text-yellow-300">
         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
         {t("settings.browserWarning")}

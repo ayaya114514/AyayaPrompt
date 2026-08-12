@@ -161,7 +161,12 @@ export function PromptForm(props: PromptFormProps) {
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-1 flex-col gap-4" aria-busy={busy}>
+    <form
+      onSubmit={onSubmit}
+      className="flex flex-1 flex-col gap-4"
+      aria-busy={busy}
+      data-dirty={dirty ? "true" : "false"}
+    >
       {error && (
         <div role="alert" className="flex items-center gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-xs text-destructive-text">
           <AlertCircle className="h-4 w-4" /> {t("form.error", { msg: error })}

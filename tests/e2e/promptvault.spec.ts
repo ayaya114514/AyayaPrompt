@@ -14,10 +14,12 @@ async function createPrompt(
 ) {
   await openApp(page);
   await page.getByRole("link", { name: "新建 Prompt" }).first().click();
-  await page.getByPlaceholder("Prompt 标题").fill(title);
   await page.getByLabel("内容", { exact: true }).fill(content);
   await page.getByLabel("文件夹", { exact: true }).fill("Tests");
   await page.getByLabel("标签", { exact: true }).fill("browser, smoke");
+  const titleInput = page.getByPlaceholder("Prompt 标题");
+  await titleInput.fill(title);
+  await expect(titleInput).toHaveValue(title);
   await page.getByRole("button", { name: "保存" }).click();
   await expect(page).toHaveURL(/#\/p\//);
 }
@@ -43,6 +45,34 @@ async function expectNoAccessibilityViolations(page: Page) {
       targets: nodes.map((node) => node.target),
     })),
   ).toEqual([]);
+}
+
+async function dismissDialogFrom(
+  page: Page,
+  action: () => Promise<unknown>,
+): Promise<string> {
+  const dialogPromise = page.waitForEvent("dialog");
+  const actionPromise = action();
+  const dialog = await dialogPromise;
+  const message = dialog.message();
+  await dialog.dismiss();
+  await actionPromise;
+  return message;
+}
+
+async function dispatchPrimaryNewShortcut(target: ReturnType<Page["locator"]>) {
+  await target.evaluate((element) => {
+    const applePlatform = /Mac|iPhone|iPad|iPod/i.test(
+      navigator.platform || navigator.userAgent,
+    );
+    element.dispatchEvent(new KeyboardEvent("keydown", {
+      key: "n",
+      metaKey: applePlatform,
+      ctrlKey: !applePlatform,
+      bubbles: true,
+      cancelable: true,
+    }));
+  });
 }
 
 test("serves the production bundle from the Pages project path", async ({ page, request }) => {
@@ -108,22 +138,12 @@ test("asks before the new-prompt shortcut leaves a dirty form", async ({ page })
   const promptUrl = page.url();
   const content = page.getByLabel("内容", { exact: true });
   await content.fill("Dirty shortcut draft");
-  await page.locator("main").focus();
-  await page.evaluate(() => new Promise<void>((resolve) => {
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-  }));
-  const primaryShortcut = await page.evaluate(() =>
-    /Mac|iPhone|iPad|iPod/i.test(navigator.platform || navigator.userAgent)
-      ? "Meta+n"
-      : "Control+n",
-  );
+  await expect(page.locator('form[data-dirty="true"]')).toBeVisible();
 
-  let dialogMessage = "";
-  page.once("dialog", async (dialog) => {
-    dialogMessage = dialog.message();
-    await dialog.dismiss();
-  });
-  await page.keyboard.press(primaryShortcut);
+  const dialogMessage = await dismissDialogFrom(
+    page,
+    () => dispatchPrimaryNewShortcut(page.locator("main")),
+  );
 
   expect(dialogMessage).toContain("尚未保存");
   await expect(page).toHaveURL(promptUrl);
@@ -135,17 +155,13 @@ test("keeps a dirty edit when browser-back discard is cancelled", async ({ page 
   const promptUrl = page.url();
   const content = page.getByLabel("内容", { exact: true });
   await content.fill("Unsaved browser-back draft");
-  await page.evaluate(() => new Promise<void>((resolve) => {
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-  }));
+  await expect(page.locator('form[data-dirty="true"]')).toBeVisible();
 
-  let dialogMessage = "";
-  page.once("dialog", async (dialog) => {
-    dialogMessage = dialog.message();
-    await dialog.dismiss();
-  });
-  await page.evaluate(() => window.history.back());
-  await expect.poll(() => dialogMessage).not.toBe("");
+  const dialogMessage = await dismissDialogFrom(
+    page,
+    () => page.evaluate(() => window.history.back()),
+  );
+  expect(dialogMessage).toContain("尚未保存");
 
   await expect(page).toHaveURL(promptUrl);
   await expect(content).toHaveValue("Unsaved browser-back draft");
@@ -226,13 +242,12 @@ test("preserves unsaved settings when navigation is cancelled", async ({ page })
   await openApp(page, "/settings");
   const apiKey = page.getByRole("textbox", { name: "API Key", exact: true });
   await apiKey.fill("unsaved-test-key");
+  await expect(page.locator('form[data-dirty="true"]')).toBeVisible();
 
-  let dialogMessage = "";
-  page.once("dialog", async (dialog) => {
-    dialogMessage = dialog.message();
-    await dialog.dismiss();
-  });
-  await page.getByRole("link", { name: "Playground", exact: true }).click();
+  const dialogMessage = await dismissDialogFrom(
+    page,
+    () => page.getByRole("link", { name: "Playground", exact: true }).click(),
+  );
 
   expect(dialogMessage).toContain("尚未保存");
   await expect(page).toHaveURL(/#\/settings$/);
