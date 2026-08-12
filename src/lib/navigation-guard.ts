@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useLayoutEffect, useRef } from "react";
 
 type DirtyEntry = {
   message: string;
@@ -122,7 +122,7 @@ installGlobalListeners();
 export function useDirtyNavigationGuard(isDirty: boolean, message: string) {
   const tokenRef = useRef(Symbol("dirty-form"));
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const token = tokenRef.current;
     if (isDirty) {
       dirtyEntries.set(token, {
