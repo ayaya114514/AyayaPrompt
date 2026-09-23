@@ -1,5 +1,3 @@
-"use client";
-
 import { useMemo, useState, useRef, useEffect, useId } from "react";
 import { NavLink } from "react-router-dom";
 import { ChevronDown, ChevronRight, Folder, Search, Star, X } from "lucide-react";

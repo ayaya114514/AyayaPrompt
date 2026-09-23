@@ -29,7 +29,9 @@ API key 只保存在当前 tab 的 `sessionStorage`，不会写入 `IndexedDB` �
 
 浏览器 storage 按 **origin**（scheme + host + port）隔离，而不是按 URL path 隔离。`https://ayaya114514.github.io/AyayaPrompt/` 与同一 `github.io` host 下的其他 project Pages 共享 origin；其他同源页面理论上可以读取这些 Prompt 数据，也能在 API session 尚未结束时读取 key。需要更强隔离时，请把 AyayaPrompt 部署到独立 custom domain/origin，并避免在共享 Pages origin 中保存高度敏感的内容。
 
-换浏览器或清除站点数据前，请先在设置页导出 JSON backup。
+默认情况下浏览器把 IndexedDB 当作 best-effort storage，空间不足或长期未访问时可能清除（Safari 尤其明显）。应用会在新建 Prompt 时申请 persistent storage，设置页也显示当前状态并可手动申请。
+
+JSON backup 包含全部 Prompt 与版本历史，不含 Playground 运行记录和 API 设置。换浏览器或清除站点数据前，请先在设置页导出。
 
 ## 本地开发
 

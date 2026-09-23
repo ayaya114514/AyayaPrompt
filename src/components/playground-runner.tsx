@@ -5,8 +5,10 @@ import {
   Play,
   RotateCw,
   ShieldAlert,
+  Square,
   Trash2,
 } from "lucide-react";
+import { CopyButton } from "@/components/copy-button";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -123,6 +125,7 @@ export function PlaygroundRunner() {
     () => (selected ? fillVariables(selected.content, values) : ""),
     [selected, values],
   );
+  const unfilled = variables.filter((name) => !values[name]?.trim());
   const needsApiKey = providerNeedsApiKey(settings);
   const canRun = Boolean(selected) && (!needsApiKey || Boolean(settings.apiKey));
   const dateFormatter = useMemo(
@@ -174,6 +177,7 @@ export function PlaygroundRunner() {
         baseURL: settings.baseURL,
         apiKey: settings.apiKey,
         model: settings.model,
+        maxTokens: settings.maxTokens,
         prompt: runContext.renderedPrompt,
         signal: controller.signal,
       });
@@ -223,6 +227,12 @@ export function PlaygroundRunner() {
         setBusy(false);
       }
     }
+  }
+
+  function cancelRun() {
+    activeRequest.current?.controller.abort();
+    activeRequest.current = null;
+    setBusy(false);
   }
 
   function loadFromRun(run: (typeof runs)[number]) {
@@ -364,14 +374,29 @@ export function PlaygroundRunner() {
             )}
           </div>
 
-          <Button
-            onClick={() => void onRun()}
-            disabled={busy || !canRun}
-            className="w-full"
-          >
-            <Play className="h-4 w-4" />
-            {busy ? t("playground.running") : t("playground.run")}
-          </Button>
+          {busy ? (
+            <Button type="button" variant="outline" onClick={cancelRun} className="w-full">
+              <Square className="h-4 w-4" />
+              {t("playground.cancel")}
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              onClick={() => void onRun()}
+              disabled={!canRun}
+              className="w-full"
+            >
+              <Play className="h-4 w-4" />
+              {t("playground.run")}
+            </Button>
+          )}
+          {unfilled.length > 0 && (
+            <p className="text-xs text-yellow-800 dark:text-yellow-200">
+              {t("playground.unfilled", {
+                names: unfilled.map((name) => `{{${name}}}`).join(", "),
+              })}
+            </p>
+          )}
         </div>
 
         <div className="space-y-4">
@@ -406,19 +431,22 @@ export function PlaygroundRunner() {
                 <pre className="max-h-[400px] overflow-auto whitespace-pre-wrap rounded-md border bg-background p-3 font-mono text-xs">
                   {result.output || " "}
                 </pre>
-                <p className="text-xs text-muted-foreground">
-                  {result.inputTokens !== null && result.outputTokens !== null
-                    ? t("playground.stats", {
-                        model: result.model,
-                        input: result.inputTokens,
-                        output: result.outputTokens,
-                        ms: result.durationMs,
-                      })
-                    : t("playground.statsNoTokens", {
-                        model: result.model,
-                        ms: result.durationMs,
-                      })}
-                </p>
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-xs text-muted-foreground">
+                    {result.inputTokens !== null && result.outputTokens !== null
+                      ? t("playground.stats", {
+                          model: result.model,
+                          input: result.inputTokens,
+                          output: result.outputTokens,
+                          ms: result.durationMs,
+                        })
+                      : t("playground.statsNoTokens", {
+                          model: result.model,
+                          ms: result.durationMs,
+                        })}
+                  </p>
+                  <CopyButton text={result.output} disabled={!result.output} />
+                </div>
               </div>
             )}
           </section>

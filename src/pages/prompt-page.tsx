@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { AlertCircle } from "lucide-react";
+import { CopyButton } from "@/components/copy-button";
 import { PromptForm } from "@/components/prompt-form";
 import { VariableRunner } from "@/components/variable-runner";
 import { VersionsPanel } from "@/components/versions-panel";
@@ -67,7 +68,10 @@ export function PromptPage() {
             })}
           </p>
         </div>
-        <VariableRunner title={visiblePrompt.title} content={visiblePrompt.content} />
+        <div className="flex shrink-0 items-start gap-2">
+          <CopyButton text={visiblePrompt.content} />
+          <VariableRunner title={visiblePrompt.title} content={visiblePrompt.content} />
+        </div>
       </header>
 
       {variables.length > 0 && (

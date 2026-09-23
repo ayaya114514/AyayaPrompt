@@ -47,6 +47,8 @@ export type AppSettings = {
   /** Session-only. This value is never written to IndexedDB or exports. */
   apiKey: string;
   model: string;
+  /** Output token cap; null uses the provider default. */
+  maxTokens: number | null;
 };
 
 export type PromptInput = Pick<

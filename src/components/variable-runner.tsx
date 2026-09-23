@@ -1,7 +1,6 @@
-"use client";
-
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Copy, Play, Check } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Play } from "lucide-react";
+import { CopyButton } from "@/components/copy-button";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -26,50 +25,20 @@ export function VariableRunner({
   const t = useT();
   const variables = useMemo(() => extractVariables(content), [content]);
   const [values, setValues] = useState<Record<string, string>>({});
-  const [copied, setCopied] = useState(false);
-  const [copyError, setCopyError] = useState<string | null>(null);
-  const copiedTimer = useRef<number | null>(null);
-
-  useEffect(
-    () => () => {
-      if (copiedTimer.current !== null) window.clearTimeout(copiedTimer.current);
-    },
-    [],
-  );
 
   const rendered = useMemo(
     () => fillVariables(content, values),
     [content, values],
   );
 
-  async function copy() {
-    setCopyError(null);
-    try {
-      await navigator.clipboard.writeText(rendered);
-      setCopied(true);
-      if (copiedTimer.current !== null) window.clearTimeout(copiedTimer.current);
-      copiedTimer.current = window.setTimeout(() => setCopied(false), 1500);
-    } catch (cause) {
-      setCopied(false);
-      setCopyError(cause instanceof Error ? cause.message : String(cause));
-    }
-  }
+  if (variables.length === 0) return null;
 
   return (
-    <Dialog
-      onOpenChange={(open) => {
-        if (!open) {
-          setCopied(false);
-          setCopyError(null);
-        }
-      }}
-    >
+    <Dialog>
       <DialogTrigger asChild>
-        <Button size="sm" variant="default" disabled={variables.length === 0}>
+        <Button size="sm" variant="default">
           <Play className="h-3.5 w-3.5" />
-          {variables.length > 0
-            ? t("runner.fillN", { n: variables.length })
-            : t("runner.fill")}
+          {t("runner.fillN", { n: variables.length })}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-3xl" closeLabel={t("shortcuts.close")}>
@@ -80,12 +49,7 @@ export function VariableRunner({
 
         <div className="grid max-h-[70vh] gap-4 overflow-y-auto md:grid-cols-2">
           <div className="space-y-3">
-            {variables.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                {t("runner.noVars")}
-              </p>
-            ) : (
-              variables.map((name) => (
+            {variables.map((name) => (
                 <div key={name} className="space-y-1.5">
                   <Label htmlFor={`var-${name}`} className="font-mono text-xs">
                     {`{{${name}}}`}
@@ -100,8 +64,7 @@ export function VariableRunner({
                     className="min-h-[60px] text-sm"
                   />
                 </div>
-              ))
-            )}
+            ))}
           </div>
 
           <div className="space-y-2">
@@ -118,26 +81,8 @@ export function VariableRunner({
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 border-t pt-3">
-          <div className="mr-auto min-w-0" aria-live="polite">
-            {copyError && (
-              <p role="alert" className="text-xs text-destructive-text">
-                {t("runner.copyError", { msg: copyError })}
-              </p>
-            )}
-            {copied && <p role="status" className="sr-only">{t("runner.copied")}</p>}
-          </div>
-          <Button type="button" size="sm" onClick={() => void copy()} variant="outline">
-            {copied ? (
-              <>
-                <Check className="h-4 w-4" /> {t("runner.copied")}
-              </>
-            ) : (
-              <>
-                <Copy className="h-4 w-4" /> {t("runner.copy")}
-              </>
-            )}
-          </Button>
+        <div className="flex justify-end border-t pt-3">
+          <CopyButton text={rendered} label={t("runner.copy")} />
         </div>
       </DialogContent>
     </Dialog>

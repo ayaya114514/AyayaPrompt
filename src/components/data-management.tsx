@@ -1,7 +1,12 @@
-import { useRef, useState } from "react";
-import { Download, Upload, Check, AlertCircle, Database } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Download, Upload, Check, AlertCircle, Database, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/lib/i18n-client";
+import {
+  getPersistenceState,
+  requestPersistentStorage,
+  type PersistenceState,
+} from "@/lib/storage";
 import { useVault } from "@/lib/vault-context";
 
 type ImportState =
@@ -16,6 +21,21 @@ export function DataManagement() {
   const [importState, setImportState] = useState<ImportState>(null);
   const [exportError, setExportError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [persistence, setPersistence] = useState<PersistenceState | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void getPersistenceState().then((state) => {
+      if (active) setPersistence(state);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function onRequestPersistence() {
+    setPersistence(await requestPersistentStorage());
+  }
 
   async function onExport() {
     setBusy(true);
@@ -30,7 +50,8 @@ export function DataManagement() {
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
-      URL.revokeObjectURL(url);
+      // Revoking synchronously can cancel the download in some browsers.
+      window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
     } catch (cause) {
       setExportError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -60,6 +81,22 @@ export function DataManagement() {
         <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{t("settings.storageDesc")}</p>
       </div>
 
+      {persistence && persistence !== "unsupported" && (
+        <div className="flex flex-wrap items-center gap-3 rounded-md border p-3 text-xs" role="status">
+          <ShieldCheck className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <span className="min-w-0 flex-1 text-muted-foreground">
+            {persistence === "persisted"
+              ? t("settings.persisted")
+              : t("settings.bestEffort")}
+          </span>
+          {persistence === "best-effort" && (
+            <Button size="sm" variant="outline" onClick={() => void onRequestPersistence()}>
+              {t("settings.requestPersist")}
+            </Button>
+          )}
+        </div>
+      )}
+
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-2 rounded-md border p-4">
           <h3 className="text-sm font-medium">{t("settings.export")}</h3>
@@ -76,6 +113,8 @@ export function DataManagement() {
             ref={fileRef}
             type="file"
             accept="application/json,.json"
+            aria-label={t("settings.import")}
+            tabIndex={-1}
             className="hidden"
             onChange={(event) => {
               const file = event.target.files?.[0];

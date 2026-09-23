@@ -24,7 +24,6 @@ type VaultContextValue = VaultSnapshot & {
   createPrompt: (input: PromptInput) => Promise<PromptRecord>;
   updatePrompt: (id: string, input: PromptInput, expectedUpdatedAt: string) => Promise<void>;
   deletePrompt: (id: string) => Promise<void>;
-  toggleFavorite: (id: string) => Promise<void>;
   restoreVersion: (versionId: string) => Promise<void>;
   saveSettings: (settings: AppSettings) => Promise<void>;
   createRun: (run: Omit<PlaygroundRunRecord, "id" | "createdAt">) => Promise<PlaygroundRunRecord>;
@@ -55,17 +54,47 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       : Math.random().toString(36).slice(2),
   );
 
-  const refresh = useCallback(async () => {
+  const readyRef = useRef(false);
+  const inFlightRef = useRef<Promise<void> | null>(null);
+  const rerunRef = useRef(false);
+
+  const loadSnapshot = useCallback(async () => {
     try {
       setSnapshot(await storage.readVaultSnapshot());
       setError(null);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      // Only a failed first load replaces the app with the storage error
+      // screen. Later failures go to the caller so open drafts stay mounted.
+      if (!readyRef.current) {
+        setError(cause instanceof Error ? cause.message : String(cause));
+      }
       throw cause;
     } finally {
+      readyRef.current = true;
       setReady(true);
     }
   }, []);
+
+  // Coalesce bursts (local saves plus cross-tab broadcasts) into at most one
+  // running read and one queued follow-up that observes every earlier write.
+  const refresh = useCallback((): Promise<void> => {
+    if (inFlightRef.current) {
+      rerunRef.current = true;
+      return inFlightRef.current;
+    }
+    const run = (async () => {
+      try {
+        do {
+          rerunRef.current = false;
+          await loadSnapshot();
+        } while (rerunRef.current);
+      } finally {
+        inFlightRef.current = null;
+      }
+    })();
+    inFlightRef.current = run;
+    return run;
+  }, [loadSnapshot]);
 
   useEffect(() => {
     refresh().catch(() => undefined);
@@ -106,7 +135,9 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     async <T,>(operation: () => Promise<T>): Promise<T> => {
       const result = await operation();
       broadcastChange();
-      await refresh();
+      // The write already committed; a failed re-read must not be reported as
+      // a failed save. The next refresh brings the view back in sync.
+      await refresh().catch(() => undefined);
       return result;
     },
     [broadcastChange, refresh],
@@ -123,7 +154,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         () => storage.updatePrompt(id, input, expectedUpdatedAt),
       ),
       deletePrompt: (id) => mutate(() => storage.deletePrompt(id)),
-      toggleFavorite: (id) => mutate(() => storage.togglePromptFavorite(id)),
       restoreVersion: (id) => mutate(() => storage.restorePromptVersion(id)),
       saveSettings: (settings) => mutate(() => storage.saveSettings(settings)),
       createRun: (run) => mutate(() => storage.createRun(run)),
