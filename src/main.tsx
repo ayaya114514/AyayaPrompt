@@ -4,15 +4,10 @@ import { HashRouter } from "react-router-dom";
 import { App } from "@/app";
 import { VaultProvider } from "@/lib/vault-context";
 import { LocaleProvider } from "@/lib/i18n-client";
+import { initTheme } from "@/lib/theme";
 import "@/styles.css";
 
-try {
-  if (localStorage.getItem("promptvault-theme-v1") === "dark") {
-    document.documentElement.classList.add("dark");
-  }
-} catch {
-  // Default to the light theme when browser storage is restricted.
-}
+initTheme();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

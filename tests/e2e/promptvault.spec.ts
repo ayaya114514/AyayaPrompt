@@ -60,19 +60,9 @@ async function dismissDialogFrom(
   return message;
 }
 
-async function dispatchPrimaryNewShortcut(target: ReturnType<Page["locator"]>) {
-  await target.evaluate((element) => {
-    const applePlatform = /Mac|iPhone|iPad|iPod/i.test(
-      navigator.platform || navigator.userAgent,
-    );
-    element.dispatchEvent(new KeyboardEvent("keydown", {
-      key: "n",
-      metaKey: applePlatform,
-      ctrlKey: !applePlatform,
-      bubbles: true,
-      cancelable: true,
-    }));
-  });
+async function pressNewShortcut(page: Page) {
+  await page.locator("main").focus();
+  await page.keyboard.press("n");
 }
 
 test("serves the production bundle from the Pages project path", async ({ page, request }) => {
@@ -126,11 +116,11 @@ test("keeps an editable draft when the new-prompt shortcut is pressed", async ({
   await title.fill("Unsaved title");
   await content.fill("Unsaved body");
 
-  await content.press("Control+n");
+  await content.press("n");
 
   await expect(page).toHaveURL(/#\/new$/);
   await expect(title).toHaveValue("Unsaved title");
-  await expect(content).toHaveValue("Unsaved body");
+  await expect(content).toHaveValue("Unsaved bodyn");
 });
 
 test("asks before the new-prompt shortcut leaves a dirty form", async ({ page }) => {
@@ -142,7 +132,7 @@ test("asks before the new-prompt shortcut leaves a dirty form", async ({ page })
 
   const dialogMessage = await dismissDialogFrom(
     page,
-    () => dispatchPrimaryNewShortcut(page.locator("main")),
+    () => pressNewShortcut(page),
   );
 
   expect(dialogMessage).toContain("尚未保存");
@@ -195,10 +185,49 @@ test("preserves a dirty draft and reports a remote update conflict", async ({ pa
   await expect(page.getByText(/另一个标签页中更新.*草稿已保留/)).toBeVisible();
   await expect(localContent).toHaveValue("Local unsaved draft");
   await page.getByRole("button", { name: "保存", exact: true }).click();
-  await expect(page.getByRole("alert")).toContainText("请复制你的草稿并刷新后再合并");
+  await expect(page.getByRole("alert")).toContainText("已在另一个标签页中更新");
   await expect(page).toHaveURL(promptUrl);
   await expect(localContent).toHaveValue("Local unsaved draft");
   await remotePage.close();
+});
+
+test("resolves a remote update conflict by overwriting or loading the latest", async ({ page }) => {
+  await createPrompt(page);
+  const promptUrl = page.url();
+  const remotePage = await page.context().newPage();
+  await remotePage.goto(promptUrl);
+  const localContent = page.getByLabel("内容", { exact: true });
+  const remoteContent = remotePage.getByLabel("内容", { exact: true });
+
+  await localContent.fill("Local wins");
+  await remoteContent.fill("Remote first");
+  await remotePage.getByRole("button", { name: "保存", exact: true }).click();
+  await page.getByRole("button", { name: "用我的草稿覆盖" }).click();
+  await expect(page.locator('form[data-dirty="false"]')).toBeVisible();
+  await expect(localContent).toHaveValue("Local wins");
+  await expect(remoteContent).toHaveValue("Local wins");
+  // The overwritten remote value stays recoverable in history.
+  await expect(page.getByText("2 个版本")).toBeVisible();
+
+  await localContent.fill("Local loses");
+  await remoteContent.fill("Remote second");
+  await remotePage.getByRole("button", { name: "保存", exact: true }).click();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "载入最新版本" }).click();
+  await expect(localContent).toHaveValue("Remote second");
+  await expect(page.locator('form[data-dirty="false"]')).toBeVisible();
+  await remotePage.close();
+});
+
+test("copies a prompt without variables and explains an empty title", async ({ page }) => {
+  await createPrompt(page, { title: "Plain prompt", content: "No placeholders here" });
+  await expect(page.getByRole("button", { name: "复制", exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: /填参/ })).toHaveCount(0);
+
+  await page.getByPlaceholder("Prompt 标题").fill("   ");
+  await page.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("标题不能为空");
+  await expect(page.getByPlaceholder("Prompt 标题")).toBeFocused();
 });
 
 test("recovers a dirty draft as a new prompt after remote deletion", async ({ page }) => {
@@ -313,7 +342,8 @@ test("stores session settings and runs the browser playground", async ({ page })
   await page.getByRole("button", { name: "运行", exact: true }).click();
   await expect(page.getByText("Mock provider answer", { exact: true }).first()).toBeVisible();
   const body = await postBody;
-  expect(body).toMatchObject({ model: "anthropic/claude-sonnet-4.5" });
+  expect(body).toMatchObject({ model: "anthropic/claude-sonnet-5" });
+  expect(body).not.toHaveProperty("max_tokens");
 
   const deleteRunButton = page.getByRole("button", { name: /删除/ });
   await expect(deleteRunButton).toHaveCount(1);
@@ -394,6 +424,51 @@ test("does not show a delayed result after switching prompts", async ({ page }) 
 
   await expect(page.getByRole("button", { name: "运行", exact: true })).toBeEnabled();
   await expect(page.getByText("Stale provider answer", { exact: true })).toHaveCount(0);
+});
+
+test("cancels an in-flight playground run without recording a result", async ({ page }) => {
+  await createPrompt(page, { title: "Slow prompt", content: "Hello {{name}}" });
+  await configureOpenRouter(page);
+  let releaseResponse!: () => void;
+  const responseGate = new Promise<void>((resolve) => {
+    releaseResponse = resolve;
+  });
+  let markStarted!: () => void;
+  const requestStarted = new Promise<void>((resolve) => {
+    markStarted = resolve;
+  });
+  await page.route("**/chat/completions", async (route) => {
+    if (route.request().method() === "OPTIONS") {
+      await route.fulfill({
+        status: 204,
+        headers: {
+          "access-control-allow-origin": "*",
+          "access-control-allow-methods": "POST",
+          "access-control-allow-headers": "authorization, content-type",
+        },
+      });
+      return;
+    }
+    markStarted();
+    await responseGate;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      headers: { "access-control-allow-origin": "*" },
+      body: JSON.stringify({ choices: [{ message: { content: "Too late" } }] }),
+    }).catch(() => undefined);
+  });
+
+  await page.getByRole("link", { name: "Playground" }).click();
+  await expect(page.getByText(/以下变量未填写.*\{\{name\}\}/)).toBeVisible();
+  await page.getByRole("button", { name: "运行", exact: true }).click();
+  await requestStarted;
+  await page.getByRole("button", { name: "取消运行" }).click();
+  await expect(page.getByRole("button", { name: "运行", exact: true })).toBeEnabled();
+  releaseResponse();
+
+  await expect(page.getByText("还没有运行记录。")).toBeVisible();
+  await expect(page.getByText("Too late", { exact: true })).toHaveCount(0);
 });
 
 test("uses modal focus behavior for responsive navigation", async ({ page }) => {

@@ -3,7 +3,8 @@ import { AlertTriangle, Check, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { PROVIDER_PRESETS } from "@/lib/providers";
+import { DEFAULT_ANTHROPIC_MAX_TOKENS, PROVIDER_PRESETS } from "@/lib/providers";
+import { DEFAULT_SETTINGS, MAX_TOKENS_LIMIT } from "@/lib/storage";
 import { useT } from "@/lib/i18n-client";
 import { useDirtyNavigationGuard } from "@/lib/navigation-guard";
 import { useVault } from "@/lib/vault-context";
@@ -18,6 +19,7 @@ export function SettingsForm() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [remoteChange, setRemoteChange] = useState(false);
+  const [keyCleared, setKeyCleared] = useState(false);
   const savedTimer = useRef<number | null>(null);
   const dirty = JSON.stringify(form) !== initialSignature;
   const { markClean } = useDirtyNavigationGuard(dirty, t("form.confirmDiscard"));
@@ -41,22 +43,23 @@ export function SettingsForm() {
 
   function patch(next: Partial<AppSettings>) {
     setSaved(false);
+    if (next.apiKey !== undefined) setKeyCleared(false);
     setForm((current) => ({ ...current, ...next }));
   }
 
   function patchConnection(next: Partial<Pick<AppSettings, "provider" | "baseURL" | "model">>) {
     setSaved(false);
-    setForm((current) => {
-      const provider = next.provider ?? current.provider;
-      const baseURL = next.baseURL ?? current.baseURL;
-      const connectionChanged =
-        provider !== current.provider || baseURL !== current.baseURL;
-      return {
-        ...current,
-        ...next,
-        apiKey: connectionChanged ? "" : current.apiKey,
-      };
-    });
+    const provider = next.provider ?? form.provider;
+    const baseURL = next.baseURL ?? form.baseURL;
+    const connectionChanged = provider !== form.provider || baseURL !== form.baseURL;
+    // A key is only valid for the endpoint it was entered for, so a
+    // connection change clears it. Say so instead of wiping it silently.
+    if (connectionChanged && form.apiKey) setKeyCleared(true);
+    setForm((current) => ({
+      ...current,
+      ...next,
+      apiKey: connectionChanged ? "" : current.apiKey,
+    }));
   }
 
   async function onSubmit(event: React.FormEvent) {
@@ -75,6 +78,7 @@ export function SettingsForm() {
       setInitialSignature(JSON.stringify(normalized));
       setForm(normalized);
       setRemoteChange(false);
+      setKeyCleared(false);
       markClean();
       setSaved(true);
       if (savedTimer.current !== null) window.clearTimeout(savedTimer.current);
@@ -184,6 +188,11 @@ export function SettingsForm() {
           spellCheck={false}
         />
         <p className="text-xs text-muted-foreground">{t("settings.apiKeyHint")}</p>
+        {keyCleared && (
+          <p role="status" className="text-xs text-yellow-800 dark:text-yellow-200">
+            {t("settings.apiKeyCleared")}
+          </p>
+        )}
       </div>
 
       <div className="space-y-2">
@@ -192,10 +201,32 @@ export function SettingsForm() {
           id="model"
           value={form.model}
           onChange={(event) => patch({ model: event.target.value })}
-          placeholder="claude-sonnet-4-5"
+          placeholder={DEFAULT_SETTINGS.model}
           className="font-mono text-xs"
           spellCheck={false}
         />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="maxTokens">{t("settings.maxTokens")}</Label>
+        <Input
+          id="maxTokens"
+          type="number"
+          inputMode="numeric"
+          min={1}
+          max={MAX_TOKENS_LIMIT}
+          step={1}
+          value={form.maxTokens ?? ""}
+          onChange={(event) => {
+            const value = event.target.valueAsNumber;
+            patch({ maxTokens: Number.isNaN(value) ? null : value });
+          }}
+          placeholder={form.provider === "anthropic" ? String(DEFAULT_ANTHROPIC_MAX_TOKENS) : t("settings.maxTokensProviderDefault")}
+          className="font-mono text-xs"
+        />
+        <p className="text-xs text-muted-foreground">
+          {t("settings.maxTokensHint", { n: DEFAULT_ANTHROPIC_MAX_TOKENS })}
+        </p>
       </div>
 
       <div className="flex justify-end">

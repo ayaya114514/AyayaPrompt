@@ -13,7 +13,7 @@ export type CallOptions = {
   apiKey: string;
   model: string;
   prompt: string;
-  maxTokens?: number;
+  maxTokens?: number | null;
   signal?: AbortSignal;
 };
 
@@ -51,17 +51,22 @@ export class ProviderError extends Error {
   }
 }
 
-const REQUEST_TIMEOUT_MS = 120_000;
+export const REQUEST_TIMEOUT_MS = 600_000;
+export const DEFAULT_ANTHROPIC_MAX_TOKENS = 16_000;
 const MAX_SUCCESS_BYTES = 2 * 1024 * 1024;
 const MAX_ERROR_BYTES = 64 * 1024;
 
-function endpoint(baseURL: string, path: string): string {
+export function endpoint(baseURL: string, path: string): string {
   let url: URL;
   try {
-    url = new URL(baseURL.replace(/\/$/, "") + path);
+    url = new URL(baseURL.trim());
   } catch {
     throw new ProviderError("invalidBaseUrl", "The provider Base URL is invalid");
   }
+  // Join on the pathname so a query string (for example ?api-version=...)
+  // stays after the endpoint path instead of swallowing it.
+  url.pathname = url.pathname.replace(/\/+$/, "") + path;
+  url.hash = "";
   if (url.protocol !== "https:" && url.protocol !== "http:") {
     throw new ProviderError(
       "invalidProtocol",
@@ -82,12 +87,12 @@ export function isLocalProviderURL(baseURL: string): boolean {
     const { hostname, protocol } = new URL(baseURL);
     if (protocol !== "http:" && protocol !== "https:") return false;
     const host = hostname.toLowerCase();
+    // Keep this list in sync with the connect-src CSP in index.html; CSP
+    // host-sources cannot express IPv6 literals such as [::1].
     return (
       host === "localhost" ||
       host.endsWith(".localhost") ||
-      host === "127.0.0.1" ||
-      host === "::1" ||
-      host === "[::1]"
+      host === "127.0.0.1"
     );
   } catch {
     return false;
@@ -184,7 +189,7 @@ async function providerFetch<T>(
       if (timedOut) {
         throw new ProviderError(
           "timeout",
-          "The provider request timed out after 120 seconds",
+          `The provider request timed out after ${REQUEST_TIMEOUT_MS / 1000} seconds`,
         );
       }
       throw new ProviderError("aborted", "The provider request was cancelled");
@@ -232,7 +237,7 @@ async function callAnthropic(options: CallOptions): Promise<CallResult> {
       },
       body: JSON.stringify({
         model: options.model,
-        max_tokens: options.maxTokens ?? 4096,
+        max_tokens: options.maxTokens ?? DEFAULT_ANTHROPIC_MAX_TOKENS,
         messages: [{ role: "user", content: options.prompt }],
       }),
     },
@@ -291,7 +296,9 @@ async function callOpenAICompatible(options: CallOptions): Promise<CallResult> {
       body: JSON.stringify({
         model: options.model,
         messages: [{ role: "user", content: options.prompt }],
-        max_tokens: options.maxTokens ?? 4096,
+        // Without an explicit cap, let the provider apply its model default;
+        // a fixed value can exceed some models' completion limits.
+        ...(options.maxTokens ? { max_tokens: options.maxTokens } : {}),
       }),
     },
     options.signal,
@@ -342,14 +349,14 @@ export const PROVIDER_PRESETS: Array<{
     label: "Anthropic",
     provider: "anthropic",
     baseURL: "https://api.anthropic.com",
-    modelHint: "claude-sonnet-4-5",
+    modelHint: "claude-sonnet-5",
     noteKey: "provider.noteAnthropic",
   },
   {
     label: "OpenRouter",
     provider: "openai-compatible",
     baseURL: "https://openrouter.ai/api/v1",
-    modelHint: "anthropic/claude-sonnet-4.5",
+    modelHint: "anthropic/claude-sonnet-5",
     noteKey: "provider.noteOpenRouter",
   },
   {

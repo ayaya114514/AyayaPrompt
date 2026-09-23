@@ -8,6 +8,7 @@ import {
   deletePrompt,
   exportVault,
   importVault,
+  MAX_TOKENS_LIMIT,
   PromptConflictError,
   readVaultSnapshot,
   resetVaultStorageForTests,
@@ -210,6 +211,36 @@ describe("IndexedDB vault", () => {
     });
   });
 
+  it("updates a favorite-only change without adding a version snapshot", async () => {
+    const prompt = await createPrompt(firstInput);
+    await updatePrompt(prompt.id, { ...firstInput, favorite: true }, prompt.updatedAt);
+
+    const snapshot = await readVaultSnapshot();
+    expect(snapshot.prompts[0].favorite).toBe(true);
+    expect(snapshot.prompts[0].updatedAt).not.toBe(prompt.updatedAt);
+    expect(snapshot.versions).toHaveLength(0);
+  });
+
+  it("reopens storage after another tab upgrades or deletes the database", async () => {
+    await createPrompt(firstInput);
+    // deleteDatabase fires versionchange on this module's open connection.
+    await idbRequest(indexedDB.deleteDatabase(DB_NAME));
+
+    const recreated = await createPrompt({ ...firstInput, title: "After reopen" });
+    const snapshot = await readVaultSnapshot();
+    expect(snapshot.prompts.map((prompt) => prompt.id)).toEqual([recreated.id]);
+  });
+
+  it("persists only a valid positive integer max token cap", async () => {
+    await saveSettings({ ...DEFAULT_SETTINGS, maxTokens: 2048 });
+    expect((await readVaultSnapshot()).settings.maxTokens).toBe(2048);
+
+    for (const invalid of [0, -1, 1.5, MAX_TOKENS_LIMIT + 1]) {
+      await saveSettings({ ...DEFAULT_SETTINGS, maxTokens: invalid });
+      expect((await readVaultSnapshot()).settings.maxTokens).toBeNull();
+    }
+  });
+
   it("cascades prompt deletion to versions and linked runs", async () => {
     const prompt = await createPrompt(firstInput);
     await updatePrompt(prompt.id, { ...firstInput, content: "Second" }, prompt.updatedAt);
@@ -297,6 +328,7 @@ describe("IndexedDB vault", () => {
       provider: "anthropic",
       baseURL: "https://api.anthropic.com/",
       model: DEFAULT_SETTINGS.model,
+      maxTokens: null,
     });
 
     const oldEnvelope = testSessionStorage.getItem(SESSION_API_KEY) ?? "";
@@ -342,6 +374,7 @@ describe("IndexedDB vault", () => {
       provider: DEFAULT_SETTINGS.provider,
       baseURL: DEFAULT_SETTINGS.baseURL,
       model: DEFAULT_SETTINGS.model,
+      maxTokens: null,
     });
   });
 

@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Keyboard } from "lucide-react";
@@ -14,7 +12,6 @@ import { useT } from "@/lib/i18n-client";
 import {
   confirmDiscardChanges,
   isEditableTarget,
-  isPrimaryModifier,
 } from "@/lib/navigation-guard";
 
 const isMac =
@@ -44,18 +41,22 @@ export function ShortcutsButton() {
         ?? shortcutButtons[0];
       if (owner !== buttonRef.current) return;
 
-      const isEditable = isEditableTarget(e.target);
-
+      // Single-key shortcuts only fire outside text fields and open dialogs.
+      // (⌘/Ctrl+N is reserved by browsers for a new window and never reaches
+      // the page in real Chrome, so the shortcut is a bare N.)
       if (
-        isPrimaryModifier(e) &&
-        !e.altKey &&
-        !e.shiftKey &&
-        e.key.toLowerCase() === "n" &&
-        !isEditable
+        isEditableTarget(e.target) ||
+        e.repeat ||
+        document.querySelector('[role="dialog"]')
       ) {
+        return;
+      }
+      const plainKey = !e.metaKey && !e.ctrlKey && !e.altKey;
+
+      if (plainKey && !e.shiftKey && e.key.toLowerCase() === "n") {
         e.preventDefault();
         if (confirmDiscardChanges()) navigate("/new");
-      } else if (e.key === "?" && !isEditable) {
+      } else if (e.key === "?" && !e.metaKey && !e.ctrlKey) {
         e.preventDefault();
         setOpen(true);
       }
@@ -66,11 +67,7 @@ export function ShortcutsButton() {
 
   const rows: Array<{ keys: React.ReactNode; label: string }> = [
     {
-      keys: (
-        <>
-          <Kbd>{MOD}</Kbd> <Kbd>N</Kbd>
-        </>
-      ),
+      keys: <Kbd>N</Kbd>,
       label: t("shortcuts.newPrompt"),
     },
     {

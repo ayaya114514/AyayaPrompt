@@ -10,7 +10,11 @@ import {
   confirmDiscardChanges,
   useDirtyNavigationGuard,
 } from "@/lib/navigation-guard";
-import { PromptConflictError, PromptNotFoundError } from "@/lib/storage";
+import {
+  PromptConflictError,
+  PromptNotFoundError,
+  requestPersistentStorage,
+} from "@/lib/storage";
 import { useVault } from "@/lib/vault-context";
 import type { PromptInput } from "@/lib/types";
 
@@ -54,7 +58,7 @@ function parseDraftSignature(signature: string): PromptDraft {
 export function PromptForm(props: PromptFormProps) {
   const navigate = useNavigate();
   const t = useT();
-  const { createPrompt, updatePrompt, deletePrompt } = useVault();
+  const { createPrompt, updatePrompt, deletePrompt, refresh } = useVault();
   const defaults: PromptInput = props.mode === "edit"
     ? props.defaults
     : { title: "", content: "", tags: [], favorite: false, folder: null };
@@ -66,6 +70,7 @@ export function PromptForm(props: PromptFormProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const expectedUpdatedAtRef = useRef(incomingUpdatedAt);
+  const titleRef = useRef<HTMLInputElement>(null);
   const dirty = draftSignature(draft) !== initialSignature;
   const { markClean } = useDirtyNavigationGuard(dirty, t("form.confirmDiscard"));
   const hasRemoteChange = dirty && incomingUpdatedAt !== expectedUpdatedAtRef.current;
@@ -90,8 +95,20 @@ export function PromptForm(props: PromptFormProps) {
     setDraft((current) => ({ ...current, ...next }));
   }
 
-  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
+  function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    void save(expectedUpdatedAtRef.current ?? (props.mode === "edit" ? props.updatedAt : ""));
+  }
+
+  function loadLatest() {
+    if (!window.confirm(t("form.confirmLoadLatest"))) return;
+    expectedUpdatedAtRef.current = incomingUpdatedAt;
+    setInitialSignature(incomingSignature);
+    setDraft(parseDraftSignature(incomingSignature));
+    setError(null);
+  }
+
+  async function save(expectedUpdatedAt: string) {
     const input: PromptInput = {
       title: draft.title.trim(),
       content: draft.content,
@@ -99,7 +116,15 @@ export function PromptForm(props: PromptFormProps) {
       favorite: draft.favorite,
       folder: draft.folder.trim() || null,
     };
-    if (!input.title) return;
+    if (!input.title) {
+      setError(t("form.titleRequired"));
+      titleRef.current?.focus();
+      return;
+    }
+
+    // Ask for durable storage while the click still counts as a user gesture;
+    // browsers may otherwise evict a best-effort origin's IndexedDB.
+    if (props.mode === "create") void requestPersistentStorage();
 
     setBusy(true);
     setError(null);
@@ -107,11 +132,7 @@ export function PromptForm(props: PromptFormProps) {
       let recoveredPromptId: string | null = null;
       if (props.mode === "edit" && !props.deletedRemotely) {
         try {
-          await updatePrompt(
-            props.id,
-            input,
-            expectedUpdatedAtRef.current ?? props.updatedAt,
-          );
+          await updatePrompt(props.id, input, expectedUpdatedAt);
         } catch (cause) {
           if (!(cause instanceof PromptNotFoundError)) throw cause;
           recoveredPromptId = (await createPrompt(input)).id;
@@ -130,6 +151,11 @@ export function PromptForm(props: PromptFormProps) {
         navigate("/p/" + encodeURIComponent(recoveredPromptId), { replace: true });
       }
     } catch (cause) {
+      if (cause instanceof PromptConflictError) {
+        // Pull the newer record so the conflict actions can offer it, even
+        // when no cross-tab broadcast arrived.
+        await refresh().catch(() => undefined);
+      }
       setError(
         cause instanceof PromptConflictError
           ? t("form.conflictError")
@@ -176,9 +202,23 @@ export function PromptForm(props: PromptFormProps) {
         <div role="status" className="rounded-md border border-yellow-500/40 bg-yellow-500/10 p-3 text-xs text-yellow-800 dark:text-yellow-200">
           {t("form.remoteDeleted")}
         </div>
-      ) : hasRemoteChange ? (
-        <div role="status" className="rounded-md border border-yellow-500/40 bg-yellow-500/10 p-3 text-xs text-yellow-800 dark:text-yellow-200">
-          {t("form.remoteChange")}
+      ) : hasRemoteChange && props.mode === "edit" ? (
+        <div role="status" className="space-y-2 rounded-md border border-yellow-500/40 bg-yellow-500/10 p-3 text-xs text-yellow-800 dark:text-yellow-200">
+          <p>{t("form.remoteChange")}</p>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" size="sm" variant="outline" onClick={loadLatest} disabled={busy}>
+              {t("form.loadLatest")}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => void save(props.updatedAt)}
+              disabled={busy}
+            >
+              {t("form.overwrite")}
+            </Button>
+          </div>
         </div>
       ) : null}
 
@@ -188,6 +228,7 @@ export function PromptForm(props: PromptFormProps) {
         </Label>
         <Input
           id="prompt-title"
+          ref={titleRef}
           name="title"
           value={draft.title}
           onChange={(event) => patchDraft({ title: event.target.value })}
@@ -261,8 +302,14 @@ export function PromptForm(props: PromptFormProps) {
             onClick={() => {
               if (!confirmDiscardChanges()) return;
               markClean();
-              if (props.mode === "create") navigate("/");
-              else navigate(-1);
+              // react-router stores the in-app history index; idx 0 means the
+              // prompt was opened directly, so "back" would leave the app.
+              const historyIndex = window.history.state?.idx;
+              if (props.mode === "edit" && typeof historyIndex === "number" && historyIndex > 0) {
+                navigate(-1);
+              } else {
+                navigate("/");
+              }
             }}
             disabled={busy}
           >

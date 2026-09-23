@@ -15,14 +15,9 @@ export const dict = {
   "sidebar.toggleLang": { zh: "English", en: "中文" },
 
   // Home
-  "home.title": { zh: "欢迎使用 AyayaPrompt", en: "Welcome to AyayaPrompt" },
   "home.empty": {
     zh: "仓库为空，创建第一条 Prompt 开始吧。",
     en: "Your vault is empty. Create your first prompt to get started.",
-  },
-  "home.hasPrompts": {
-    zh: "你已保存 {count} 条 Prompt。从左侧选一条，或创建新的。",
-    en: "You have {count} prompt{s} saved. Pick one from the sidebar, or create a new one.",
   },
 
   // New page
@@ -62,16 +57,16 @@ export const dict = {
     en: "You have unsaved changes. Leave without saving?",
   },
   "form.remoteChange": {
-    zh: "此 Prompt 已在另一个标签页中更新。你的草稿已保留；保存时将提示版本冲突。",
-    en: "This prompt changed in another tab. Your draft is preserved; saving will report a version conflict.",
+    zh: "此 Prompt 已在另一个标签页中更新，你的草稿已保留。可以载入最新版本，或用草稿覆盖（被覆盖的内容会保留在版本历史中）。",
+    en: "This prompt changed in another tab. Your draft is preserved. Load the latest version, or overwrite it with your draft (the overwritten content stays in version history).",
   },
   "form.remoteDeleted": {
     zh: "此 Prompt 已在另一个标签页中删除。你的草稿已保留；保存会将其恢复为一条新 Prompt。",
     en: "This prompt was deleted in another tab. Your draft is preserved; saving will recover it as a new prompt.",
   },
   "form.conflictError": {
-    zh: "此 Prompt 已在另一个标签页中更新。请复制你的草稿并刷新后再合并。",
-    en: "This prompt changed in another tab. Copy your draft, refresh, and merge the changes before saving.",
+    zh: "此 Prompt 已在另一个标签页中更新，本次未保存。请载入最新版本或用草稿覆盖。",
+    en: "This prompt changed in another tab, so nothing was saved. Load the latest version or overwrite it with your draft.",
   },
 
   // Detail
@@ -88,7 +83,6 @@ export const dict = {
   },
 
   // Variable runner
-  "runner.fill": { zh: "填参", en: "Fill" },
   "runner.fillN": { zh: "填参 ({n})", en: "Fill ({n})" },
   "runner.dialogTitle": {
     zh: "填入变量 · {title}",
@@ -97,10 +91,6 @@ export const dict = {
   "runner.dialogDesc": {
     zh: "在左侧填入变量值，右侧实时预览。",
     en: "Enter values below. The prompt preview on the right updates live.",
-  },
-  "runner.noVars": {
-    zh: "这条 Prompt 没有检测到变量占位符。",
-    en: "No variables detected in this prompt.",
   },
   "runner.enterValue": {
     zh: "输入 {name}…",
@@ -176,7 +166,6 @@ export const dict = {
     en: "Settings changed in another tab. Overwrite them with this draft?",
   },
   "settings.presets": { zh: "预设", en: "Presets" },
-  "settings.presetApply": { zh: "使用", en: "Apply" },
 
   // Playground
   "playground.title": { zh: "Playground", en: "Playground" },
@@ -189,7 +178,6 @@ export const dict = {
     zh: "还没有 Prompt，先去侧边栏创建一条。",
     en: "No prompts yet. Create one in the sidebar first.",
   },
-  "playground.pickPrompt": { zh: "— 请选择 —", en: "— pick one —" },
   "playground.variables": { zh: "变量", en: "Variables" },
   "playground.noVariables": {
     zh: "此 Prompt 无变量。",
@@ -221,12 +209,10 @@ export const dict = {
     zh: "还没有运行记录。",
     en: "No runs yet.",
   },
-  "playground.deleteRun": { zh: "删除", en: "Delete" },
   "playground.confirmDeleteRun": {
     zh: "删除这次运行记录？",
     en: "Delete this run?",
   },
-  "playground.loadInto": { zh: "回填到 Playground", en: "Load into playground" },
   "playground.createPrompt": { zh: "新建 Prompt", en: "Create prompt" },
   "playground.clearHistory": { zh: "清空历史", en: "Clear history" },
   "playground.confirmClearHistory": {
@@ -282,11 +268,10 @@ export const dict = {
   "sidebar.noResults": { zh: "没有匹配的 Prompt。", en: "No matching prompts." },
 
   // Import/Export
-  "settings.dataTitle": { zh: "数据管理", en: "Data management" },
   "settings.export": { zh: "导出为 JSON", en: "Export JSON" },
   "settings.exportDesc": {
-    zh: "下载包含所有 Prompt 的 JSON 文件（含版本历史）。",
-    en: "Download a JSON file containing all prompts (with version history).",
+    zh: "下载包含所有 Prompt 及其版本历史的 JSON 文件（不含运行记录）。",
+    en: "Download a JSON file with every prompt and its version history (run history is not included).",
   },
   "settings.import": { zh: "导入 JSON", en: "Import JSON" },
   "settings.importDesc": {
@@ -309,8 +294,6 @@ export const dict = {
   // Shortcuts
   "shortcuts.title": { zh: "键盘快捷键", en: "Keyboard shortcuts" },
   "shortcuts.newPrompt": { zh: "新建 Prompt", en: "New prompt" },
-  "shortcuts.playground": { zh: "打开 Playground", en: "Open playground" },
-  "shortcuts.settings": { zh: "打开设置", en: "Open settings" },
   "shortcuts.search": { zh: "聚焦搜索框", en: "Focus search" },
   "shortcuts.help": { zh: "显示此帮助", en: "Show this help" },
   "shortcuts.close": { zh: "关闭弹框", en: "Close dialog" },
@@ -330,8 +313,8 @@ export const dict = {
   },
   "settings.storageTitle": { zh: "本地存储", en: "Local storage" },
   "settings.storageDesc": {
-    zh: "Prompt、版本和运行记录保存在此网站 origin 的 IndexedDB 中。换浏览器或清除站点数据前请先导出备份。",
-    en: "Prompts, versions, and runs live in IndexedDB for this site origin. Export a backup before switching browsers or clearing site data.",
+    zh: "Prompt、版本和运行记录保存在此网站 origin 的 IndexedDB 中。JSON 备份包含 Prompt 与版本历史，不含运行记录和 API 设置；换浏览器或清除站点数据前请先导出。",
+    en: "Prompts, versions, and runs live in IndexedDB for this site origin. JSON backups contain prompts and version history, not run history or API settings; export one before switching browsers or clearing site data.",
   },
   "notFound.title": { zh: "没有找到这个页面", en: "Page not found" },
   "notFound.home": { zh: "返回首页", en: "Back home" },
@@ -382,8 +365,8 @@ export const dict = {
     en: "Remote providers must use HTTPS; HTTP is allowed only for localhost or loopback addresses.",
   },
   "provider.error.invalidResponse": {
-    zh: "Provider 返回了无效的 JSON。",
-    en: "The provider returned invalid JSON.",
+    zh: "Provider 返回了无效或无法识别的响应。",
+    en: "The provider returned an invalid or unrecognized response.",
   },
   "provider.error.modelMissing": {
     zh: "尚未填写模型名称。",
@@ -398,8 +381,8 @@ export const dict = {
     en: "The provider response exceeded the safe size limit.",
   },
   "provider.error.timeout": {
-    zh: "Provider 请求在 120 秒后超时。",
-    en: "The provider request timed out after 120 seconds.",
+    zh: "Provider 请求在 10 分钟后超时。",
+    en: "The provider request timed out after 10 minutes.",
   },
   "provider.error.aborted": {
     zh: "Provider 请求已取消。",
@@ -408,6 +391,70 @@ export const dict = {
   "provider.error.http": {
     zh: "{provider} 返回 HTTP {status}：{detail}",
     en: "{provider} returned HTTP {status}: {detail}",
+  },
+  "common.copy": {
+    zh: "复制",
+    en: "Copy",
+  },
+  "home.tagline": {
+    zh: "浏览器本地的 Prompt 仓库：版本历史、模板变量、多 Provider Playground。",
+    en: "A browser-local prompt library with version history, template variables, and a multi-provider playground.",
+  },
+  "home.recent": {
+    zh: "最近更新（共 {count} 条）",
+    en: "Recently updated ({count} total)",
+  },
+  "form.titleRequired": {
+    zh: "标题不能为空。",
+    en: "Title is required.",
+  },
+  "form.loadLatest": {
+    zh: "载入最新版本",
+    en: "Load latest version",
+  },
+  "form.overwrite": {
+    zh: "用我的草稿覆盖",
+    en: "Overwrite with my draft",
+  },
+  "form.confirmLoadLatest": {
+    zh: "载入最新版本会丢弃当前草稿，确定吗？",
+    en: "Loading the latest version discards your draft. Continue?",
+  },
+  "playground.cancel": {
+    zh: "取消运行",
+    en: "Cancel run",
+  },
+  "playground.unfilled": {
+    zh: "以下变量未填写，将按原样发送：{names}",
+    en: "These variables are empty and will be sent as-is: {names}",
+  },
+  "settings.apiKeyCleared": {
+    zh: "Provider 或 endpoint 已变更，API Key 已清空，请为新 endpoint 重新填写。",
+    en: "The provider or endpoint changed, so the API key was cleared. Enter a key for the new endpoint.",
+  },
+  "settings.maxTokens": {
+    zh: "最大输出 token",
+    en: "Max output tokens",
+  },
+  "settings.maxTokensHint": {
+    zh: "留空使用默认值：Anthropic 为 {n}，OpenAI-compatible 由 Provider 决定。",
+    en: "Leave empty for the default: {n} for Anthropic; OpenAI-compatible providers use their own default.",
+  },
+  "settings.maxTokensProviderDefault": {
+    zh: "Provider 默认",
+    en: "Provider default",
+  },
+  "settings.persisted": {
+    zh: "浏览器已授予持久存储，数据不会被自动清理。",
+    en: "Persistent storage is granted; the browser will not evict this data automatically.",
+  },
+  "settings.bestEffort": {
+    zh: "当前是 best-effort 存储：空间不足或长期未访问时，浏览器可能清除这些数据。建议申请持久存储并定期导出备份。",
+    en: "Storage is best-effort: the browser may clear this data under storage pressure or after long inactivity. Request persistent storage and export backups regularly.",
+  },
+  "settings.requestPersist": {
+    zh: "申请持久存储",
+    en: "Request persistent storage",
   },
 } as const satisfies Record<string, Entry>;
 

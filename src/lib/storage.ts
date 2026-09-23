@@ -26,8 +26,11 @@ export const DEFAULT_SETTINGS: AppSettings = {
   provider: "anthropic",
   baseURL: "https://api.anthropic.com",
   apiKey: "",
-  model: "claude-sonnet-4-5",
+  model: "claude-sonnet-5",
+  maxTokens: null,
 };
+
+export const MAX_TOKENS_LIMIT = 200_000;
 
 type StoredSettings = Omit<AppSettings, "apiKey">;
 
@@ -58,7 +61,7 @@ function transactionDone(transaction: IDBTransaction): Promise<void> {
 function openDatabase(): Promise<IDBDatabase> {
   if (databasePromise) return databasePromise;
 
-  databasePromise = new Promise((resolve, reject) => {
+  const pending = new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 
     request.onupgradeneeded = (event) => {
@@ -111,20 +114,32 @@ function openDatabase(): Promise<IDBDatabase> {
     };
 
     request.onsuccess = () => {
-      request.result.onversionchange = () => request.result.close();
-      resolve(request.result);
+      const database = request.result;
+      const forget = () => {
+        if (databasePromise === pending) databasePromise = null;
+      };
+      // Another tab is upgrading or deleting the database. Release this
+      // connection and let the next operation reopen instead of reusing a
+      // closed handle forever.
+      database.onversionchange = () => {
+        database.close();
+        forget();
+      };
+      database.onclose = forget;
+      resolve(database);
     };
     request.onerror = () => {
-      databasePromise = null;
+      if (databasePromise === pending) databasePromise = null;
       reject(request.error ?? new Error("Unable to open browser storage"));
     };
     request.onblocked = () => {
-      databasePromise = null;
+      if (databasePromise === pending) databasePromise = null;
       reject(new Error("Browser storage upgrade is blocked by another AyayaPrompt tab"));
     };
   });
 
-  return databasePromise;
+  databasePromise = pending;
+  return pending;
 }
 
 function createId(): string {
@@ -208,7 +223,17 @@ function toStoredSettings(value: unknown): StoredSettings {
     model: typeof candidate.model === "string" && candidate.model.trim()
       ? candidate.model.trim()
       : DEFAULT_SETTINGS.model,
+    maxTokens: normalizeMaxTokens(candidate.maxTokens),
   };
+}
+
+export function normalizeMaxTokens(value: unknown): number | null {
+  return typeof value === "number"
+    && Number.isInteger(value)
+    && value > 0
+    && value <= MAX_TOKENS_LIMIT
+    ? value
+    : null;
 }
 
 function nextUpdatedAt(previous: string): string {
@@ -315,12 +340,13 @@ export async function updatePrompt(id: string, input: PromptInput, expectedUpdat
     throw new PromptConflictError();
   }
 
-  const changed = current.title !== input.title
+  // Favorite is a flag, not prompt content: toggling it alone updates the
+  // record without adding an empty-diff version snapshot.
+  const contentChanged = current.title !== input.title
     || current.content !== input.content
     || JSON.stringify(current.tags) !== JSON.stringify(input.tags)
-    || current.favorite !== input.favorite
     || current.folder !== input.folder;
-  if (changed) {
+  if (contentChanged) {
     const version: PromptVersionRecord = {
       id: createId(),
       promptId: id,
@@ -332,6 +358,8 @@ export async function updatePrompt(id: string, input: PromptInput, expectedUpdat
       createdAt: new Date().toISOString(),
     };
     transaction.objectStore(STORES.versions).add(version);
+  }
+  if (contentChanged || current.favorite !== input.favorite) {
     prompts.put({ ...current, ...input, updatedAt: nextUpdatedAt(current.updatedAt) });
   }
   await done;
@@ -350,16 +378,6 @@ export async function deletePrompt(id: string): Promise<void> {
   const runs = transaction.objectStore(STORES.runs);
   const runKeys = await requestResult(runs.index("promptId").getAllKeys(id));
   runKeys.forEach((key) => runs.delete(key));
-  await done;
-}
-
-export async function togglePromptFavorite(id: string): Promise<void> {
-  const database = await openDatabase();
-  const transaction = database.transaction(STORES.prompts, "readwrite");
-  const done = transactionDone(transaction);
-  const store = transaction.objectStore(STORES.prompts);
-  const prompt = (await requestResult(store.get(id))) as PromptRecord | undefined;
-  if (prompt) store.put({ ...prompt, favorite: !prompt.favorite, updatedAt: nextUpdatedAt(prompt.updatedAt) });
   await done;
 }
 
@@ -547,6 +565,42 @@ export async function exportVault(): Promise<string> {
     null,
     2,
   );
+}
+
+export type PersistenceState = "persisted" | "best-effort" | "unsupported";
+
+function storageManager(): StorageManager | null {
+  return typeof navigator !== "undefined"
+    && navigator.storage
+    && typeof navigator.storage.persisted === "function"
+    && typeof navigator.storage.persist === "function"
+    ? navigator.storage
+    : null;
+}
+
+export async function getPersistenceState(): Promise<PersistenceState> {
+  const manager = storageManager();
+  if (!manager) return "unsupported";
+  try {
+    return (await manager.persisted()) ? "persisted" : "best-effort";
+  } catch {
+    return "unsupported";
+  }
+}
+
+/**
+ * Asks the browser not to evict this origin's IndexedDB under storage pressure
+ * or inactivity policies. Browsers may grant silently, prompt, or refuse.
+ */
+export async function requestPersistentStorage(): Promise<PersistenceState> {
+  const manager = storageManager();
+  if (!manager) return "unsupported";
+  try {
+    if (await manager.persisted()) return "persisted";
+    return (await manager.persist()) ? "persisted" : "best-effort";
+  } catch {
+    return "unsupported";
+  }
 }
 
 export async function resetVaultStorageForTests(): Promise<void> {
