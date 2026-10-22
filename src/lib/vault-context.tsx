@@ -143,6 +143,16 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     [broadcastChange, refresh],
   );
 
+  const versionsByPrompt = useMemo(() => {
+    const groups = new Map<string, PromptVersionRecord[]>();
+    for (const version of snapshot.versions) {
+      const group = groups.get(version.promptId);
+      if (group) group.push(version);
+      else groups.set(version.promptId, [version]);
+    }
+    return groups;
+  }, [snapshot.versions]);
+
   const value = useMemo<VaultContextValue>(
     () => ({
       ...snapshot,
@@ -161,9 +171,9 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       clearRuns: () => mutate(() => storage.clearRuns()),
       importData: (jsonText) => mutate(() => storage.importVault(jsonText)),
       exportData: storage.exportVault,
-      versionsFor: (promptId) => snapshot.versions.filter((version) => version.promptId === promptId),
+      versionsFor: (promptId) => versionsByPrompt.get(promptId) ?? [],
     }),
-    [error, mutate, ready, refresh, snapshot],
+    [error, mutate, ready, refresh, snapshot, versionsByPrompt],
   );
 
   return <VaultContext.Provider value={value}>{children}</VaultContext.Provider>;

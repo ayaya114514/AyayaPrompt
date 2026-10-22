@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Link, Route, Routes, useLocation } from "react-router-dom";
 import { AlertCircle, LoaderCircle, Menu } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
@@ -12,12 +12,27 @@ import {
 } from "@/components/ui/dialog";
 import { HomePage } from "@/pages/home-page";
 import { NewPromptPage, PromptPage } from "@/pages/prompt-page";
-import { PlaygroundPage } from "@/pages/playground-page";
-import { SettingsPage } from "@/pages/settings-page";
 import { NotFoundPage } from "@/pages/not-found-page";
 import { useT } from "@/lib/i18n-client";
 import { isPrimaryModifier } from "@/lib/navigation-guard";
 import { useVault } from "@/lib/vault-context";
+
+// Playground (providers, streaming runner) and settings are split out of the
+// main bundle; most visits only list and edit prompts.
+const PlaygroundPage = lazy(() =>
+  import("@/pages/playground-page").then((module) => ({ default: module.PlaygroundPage })),
+);
+const SettingsPage = lazy(() =>
+  import("@/pages/settings-page").then((module) => ({ default: module.SettingsPage })),
+);
+
+function RouteFallback() {
+  return (
+    <div className="flex justify-center p-8 text-muted-foreground">
+      <LoaderCircle className="h-5 w-5 animate-spin" aria-hidden="true" />
+    </div>
+  );
+}
 
 function AppShell() {
   const t = useT();
@@ -147,6 +162,7 @@ function AppShell() {
           tabIndex={-1}
           className="min-w-0 flex-1 overflow-y-auto outline-none"
         >
+          <Suspense fallback={<RouteFallback />}>
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/new" element={<NewPromptPage />} />
@@ -155,6 +171,7 @@ function AppShell() {
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
+          </Suspense>
         </main>
         <div className="sr-only" aria-live="polite" aria-atomic="true">
           {routeAnnouncement}

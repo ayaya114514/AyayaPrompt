@@ -1,11 +1,15 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { History, RotateCcw, ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { DiffView } from "@/components/diff-view";
 import { useLocale, useT } from "@/lib/i18n-client";
 import { useVault } from "@/lib/vault-context";
 import { cn } from "@/lib/utils";
 import type { PromptVersionRecord } from "@/lib/types";
+
+// The diff library only loads once a version is opened.
+const DiffView = lazy(() =>
+  import("@/components/diff-view").then((module) => ({ default: module.DiffView })),
+);
 
 export function VersionsPanel({
   current,
@@ -79,12 +83,14 @@ export function VersionsPanel({
             </button>
             {isOpen && (
               <div id={panelId} className="space-y-3 border-t p-3">
-                <DiffView
-                  oldText={version.content}
-                  newText={current.content}
-                  oldLabel={t("versions.versionContent", { n: versionNumber })}
-                  newLabel={t("versions.currentContent")}
-                />
+                <Suspense fallback={<div className="h-16" aria-hidden="true" />}>
+                  <DiffView
+                    oldText={version.content}
+                    newText={current.content}
+                    oldLabel={t("versions.versionContent", { n: versionNumber })}
+                    newLabel={t("versions.currentContent")}
+                  />
+                </Suspense>
                 {version.title !== current.title && (
                   <div className="text-xs text-muted-foreground">
                     {t("versions.oldTitle", { title: version.title })}

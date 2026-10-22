@@ -440,9 +440,25 @@ export async function createRun(run: Omit<PlaygroundRunRecord, "id" | "createdAt
   const transaction = database.transaction(STORES.runs, "readwrite");
   const done = transactionDone(transaction);
   const runs = transaction.objectStore(STORES.runs);
-  const existing = (await requestResult(runs.getAll())) as PlaygroundRunRecord[];
-  existing.sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
-  existing.slice(RUN_RETENTION_LIMIT - 1).forEach((run) => runs.delete(run.id));
+  // Drop only the oldest runs past the limit (createdAt index, ties by id),
+  // instead of reading every stored run with its full output.
+  let excess = (await requestResult(runs.count())) - (RUN_RETENTION_LIMIT - 1);
+  if (excess > 0) {
+    await new Promise<void>((resolve, reject) => {
+      const cursorRequest = runs.index("createdAt").openCursor();
+      cursorRequest.onerror = () => reject(cursorRequest.error);
+      cursorRequest.onsuccess = () => {
+        const cursor = cursorRequest.result;
+        if (!cursor || excess <= 0) {
+          resolve();
+          return;
+        }
+        cursor.delete();
+        excess -= 1;
+        cursor.continue();
+      };
+    });
+  }
   runs.add(record);
   await done;
   return record;
